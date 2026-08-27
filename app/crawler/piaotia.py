@@ -28,26 +28,50 @@ class PiaotiaCrawler(BaseCrawler):
         if not title:
             raise ValueError("Không tìm thấy tiêu đề truyện tại nguồn.")
         author = ""
-        for tag in soup.find_all(["td", "span", "div"]):
-            text = tag.get_text(" ", strip=True)
+        for tag in soup.find_all("td"):
+            text = tag.get_text(" ", strip=True).replace("\xa0", " ")
             match = re.search(r"作\s*者[：:\s]*([^\s]+)", text)
-            if len(text) < 80 and match:
-                author = match.group(1)
+            if match and match.group(1) not in ("书名", "类别", "状态", "字数"):
+                author = match.group(1).strip()
                 break
-        description = soup.select_one("span.hottext, td.v_content, div#content")
-        if description is None:
-            description = next((tag for tag in soup.find_all("td")
-                                if len(tag.get_text()) > 80 and
-                                any(label in tag.get_text() for label in ("内容简介", "作品简介"))), None)
-        image = soup.find("img", src=re.compile(r"/files/article/image/"))
+        if not author:
+            for tag in soup.find_all(["span", "div", "p"]):
+                text = tag.get_text(" ", strip=True).replace("\xa0", " ")
+                match = re.search(r"作\s*者[：:\s]*([^\s]+)", text)
+                if match and match.group(1) not in ("书名", "类别", "状态", "字数"):
+                    author = match.group(1).strip()
+                    break
+
+        description = ""
+        for tag in soup.find_all("td"):
+            text = tag.get_text(" ", strip=True)
+            if "内容简介" in text:
+                parts = text.split("内容简介", 1)
+                if len(parts) > 1:
+                    description = parts[1].lstrip("：: ").strip()
+                    break
+        if not description:
+            desc_tag = soup.select_one("span.hottext, td.v_content, div#content")
+            if desc_tag:
+                description = desc_tag.get_text(" ", strip=True)
+
+        parsed_info = urlsplit(info_url)
+        match_info = re.search(r"/(\d+)/(\d+)", parsed_info.path)
+        if match_info:
+            f_id, s_id = match_info.groups()
+            image = soup.find("img", src=re.compile(rf"/files/article/image/{f_id}/{s_id}/"))
+        else:
+            image = None
+        if not image:
+            image = soup.find("img", src=re.compile(r"/files/article/image/"))
         cover = ""
-        if image:
+        if image and image.get("src"):
             try:
                 cover = same_source_url(info_url, image.get("src", ""))
             except ValueError:
                 pass  # An untrusted optional image is omitted, never fetched.
         return {"title": title, "author": author,
-                "description": description.get_text(" ", strip=True) if description else "",
+                "description": description or "",
                 "cover_url": cover, "source_url": catalog_url,
                 "source_name": "piaotia", "catalog_url": catalog_url}
 

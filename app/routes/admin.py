@@ -240,7 +240,10 @@ async def sync_now_endpoint():
 
 @router.post("/api/auto-updater/discover-hot")
 async def discover_hot_endpoint(payload: DiscoverHotRequest):
-    imported = await auto_updater.discover_hot_novels(max_novels=payload.count, category_code=payload.category)
+    try:
+        imported = await auto_updater.discover_hot_novels(max_novels=payload.count, category_code=payload.category)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Không thể nạp bảng xếp hạng: {str(e)}")
     return {
         "status": "success",
         "imported_count": len(imported),
