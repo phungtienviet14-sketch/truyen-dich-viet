@@ -14,6 +14,14 @@ MAX_CATALOG_CHAPTERS = 20000
 _loop_rates = weakref.WeakKeyDictionary()
 
 
+class SourceChallenged(ValueError):
+    """The source served an anti-bot interstitial instead of the page.
+
+    Raised so the failure is reported as an environment problem (the host's
+    egress IP is being challenged) rather than a parsing or URL error.
+    """
+
+
 def allowed_hosts():
     """Exact hosts only; extra hosts explicitly opt into the Biquge adapter."""
     configured = os.getenv("CRAWLER_ALLOWED_HOSTS", ",".join(sorted(PIAOTIA_HOSTS)))
@@ -132,6 +140,7 @@ async def _fetch_redirects(client, url, encoding):
                     raise ValueError("Nguồn trả redirect không có đích.")
                 url = same_source_url(original, urljoin(url, location))
                 continue
+            _reject_bot_challenge(response)
             response.raise_for_status()
             payload = await _bounded_body(response)
             try:
@@ -139,6 +148,23 @@ async def _fetch_redirects(client, url, encoding):
             except UnicodeDecodeError:
                 return payload.decode("gb18030")
     raise ValueError("Nguồn redirect quá nhiều lần.")
+
+
+def _reject_bot_challenge(response):
+    """Cloudflare answers 403 with `cf-mitigated: challenge` for egress IPs it
+    does not trust. No header or retry clears it: the interstitial expects a
+    browser to run its script, so report the cause instead of the raw status.
+    """
+    if response.status_code not in (403, 503):
+        return
+    if response.headers.get("cf-mitigated", "").lower() != "challenge" and "cloudflare" not in response.headers.get("server", "").lower():
+        return
+    raise SourceChallenged(
+        "Nguồn đang chặn địa chỉ IP của máy chủ bằng thử thách chống bot (Cloudflare). "
+        "Máy chủ đám mây thường bị chặn, trong khi mạng gia đình thì không. "
+        "Hãy chạy tiến trình nạp truyện (python -m app.worker) từ máy/mạng không bị chặn, "
+        "trỏ vào cùng DATABASE_URL, và để Render chỉ phục vụ nội dung đã nạp."
+    )
 
 
 async def _bounded_body(response):

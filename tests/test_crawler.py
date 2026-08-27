@@ -423,3 +423,39 @@ async def test_connect_failure_on_every_address_is_reported(monkeypatch):
         await transport.handle_async_request(
             httpx.Request("GET", "https://www.piaotia.com/html/1/1/1.html"))
     await transport.aclose()
+
+
+# --- Anti-bot interstitial is reported as an environment problem ------------
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status,headers", [
+    (403, {"cf-mitigated": "challenge", "server": "cloudflare"}),
+    (503, {"server": "cloudflare"}),
+])
+async def test_bot_challenge_is_reported_as_a_blocked_egress_ip(monkeypatch, status, headers):
+    import httpx
+    from app.crawler.security import SourceChallenged, _fetch_redirects
+    monkeypatch.setattr("app.crawler.security._rate_limit", AsyncMock())
+
+    def handler(request):
+        return httpx.Response(status, headers=headers, text="<title>Just a moment...</title>")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(SourceChallenged, match="chống bot"):
+            await _fetch_redirects(client, "https://www.piaotia.com/", "utf-8")
+
+
+@pytest.mark.asyncio
+async def test_an_ordinary_403_is_not_mistaken_for_a_challenge(monkeypatch):
+    import httpx
+    from app.crawler.security import SourceChallenged, _fetch_redirects
+    monkeypatch.setattr("app.crawler.security._rate_limit", AsyncMock())
+
+    def handler(request):
+        return httpx.Response(403, headers={"server": "nginx"}, text="denied")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            await _fetch_redirects(client, "https://www.piaotia.com/", "utf-8")
+        # A plain 403 must still surface as an HTTP error, not a challenge.
+        assert not issubclass(httpx.HTTPStatusError, SourceChallenged)
