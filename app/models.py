@@ -112,3 +112,31 @@ class AuditLog(Base):
     action = Column(String(255), nullable=False)
     status_code = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None), index=True)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    display_name = Column(String(100), nullable=True)
+    avatar = Column(String(50), default="🧙‍♂️")
+    data_json = Column(Text, default="{}")
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None))
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+                        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None))
+
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+
+    token_hash = Column(String(64), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    csrf_token = Column(String(64), nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None))
+
+    user = relationship("User", back_populates="sessions")

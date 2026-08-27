@@ -1,4 +1,4 @@
-"""Admin sessions: opaque cookies, revocation, PBKDF2 passwords and CSRF."""
+"""Authentication, session management, PBKDF2 passwords, and CSRF protection."""
 import argparse
 import getpass
 import hashlib
@@ -6,16 +6,19 @@ import hmac
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 from fastapi import HTTPException, Request
 from sqlalchemy import delete, select
 
 from app import config
 from app.database import AsyncSessionLocal
-from app.models import AdminSession
+from app.models import AdminSession, User, UserSession
 
 COOKIE_NAME = "tdv_session"
 LOGIN_COOKIE = "tdv_login_csrf"
+USER_COOKIE_NAME = "tdv_user_session"
+USER_SESSION_TTL_SECONDS = 30 * 24 * 3600  # 30 days
 
 
 def utcnow():
@@ -30,11 +33,31 @@ def password_hash(password: str) -> str:
     return f"pbkdf2_sha256:600000:{salt}:{digest}"
 
 
+def user_password_hash(password: str) -> str:
+    if len(password) < 6:
+        raise ValueError("Mật khẩu phải có ít nhất 6 ký tự")
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000).hex()
+    return f"pbkdf2_sha256:100000:{salt}:{digest}"
+
+
 def verify_password(password: str, encoded: str) -> bool:
     try:
         algorithm, iterations, salt, expected = encoded.replace("$", ":").split(":")
         rounds = int(iterations)
         if algorithm != "pbkdf2_sha256" or not 600_000 <= rounds <= 2_000_000:
+            return False
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), rounds).hex()
+        return hmac.compare_digest(actual, expected)
+    except (ValueError, TypeError):
+        return False
+
+
+def verify_user_password(password: str, encoded: str) -> bool:
+    try:
+        algorithm, iterations, salt, expected = encoded.replace("$", ":").split(":")
+        rounds = int(iterations)
+        if algorithm != "pbkdf2_sha256":
             return False
         actual = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), rounds).hex()
         return hmac.compare_digest(actual, expected)
@@ -74,11 +97,52 @@ async def create_session():
     return token, session
 
 
+async def get_user_session(request: Request):
+    token = request.cookies.get(USER_COOKIE_NAME)
+    if not token or len(token) > 128:
+        return None, None
+    async with AsyncSessionLocal() as db:
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        session = await db.get(UserSession, token_hash)
+        if session and session.expires_at > utcnow():
+            user = await db.get(User, session.user_id)
+            if user:
+                return session, user
+    return None, None
+
+
+async def create_user_session(user_id: int):
+    token = secrets.token_urlsafe(48)
+    session = UserSession(
+        token_hash=hashlib.sha256(token.encode()).hexdigest(),
+        user_id=user_id,
+        csrf_token=secrets.token_hex(32),
+        expires_at=utcnow() + timedelta(seconds=USER_SESSION_TTL_SECONDS)
+    )
+    async with AsyncSessionLocal() as db:
+        await db.execute(delete(UserSession).where(UserSession.expires_at <= utcnow()))
+        db.add(session)
+        await db.commit()
+    return token, session
+
+
 def check_origin(request: Request):
     origin = request.headers.get("origin")
-    expected = str(request.base_url).rstrip("/")
-    if origin and origin.rstrip("/") != expected:
+    if not origin:
+        return
+    try:
+        origin_parsed = urlparse(origin)
+        host_header = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+        origin_host = origin_parsed.netloc.split(":")[0].lower()
+        expected_host = host_header.split(":")[0].lower()
+        base_host = request.base_url.netloc.split(":")[0].lower()
+        if origin_host and expected_host and origin_host != expected_host and origin_host != base_host:
+            raise HTTPException(403, "Nguồn yêu cầu không hợp lệ.")
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(403, "Nguồn yêu cầu không hợp lệ.")
+
     if request.headers.get("sec-fetch-site") == "cross-site":
         raise HTTPException(403, "Không chấp nhận yêu cầu khác website.")
 
@@ -93,6 +157,13 @@ async def require_admin(request: Request):
         if not hmac.compare_digest(token, session.csrf_token):
             raise HTTPException(403, "CSRF token không hợp lệ.")
     return session
+
+
+async def require_user(request: Request):
+    user = getattr(request.state, "current_user", None)
+    if user is None:
+        raise HTTPException(401, "Vui lòng đăng nhập tài khoản.")
+    return user
 
 
 def login_csrf() -> str:

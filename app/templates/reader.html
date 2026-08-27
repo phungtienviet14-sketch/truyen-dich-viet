@@ -1028,10 +1028,9 @@
             } else {
                 showToast('Không thể gửi bình luận', 'error');
             }
-        } catch (err) {
-            showToast('Lỗi kết nối', 'error');
         }
     }
+
 
     // Init on page load
     document.addEventListener('DOMContentLoaded', () => {
@@ -1040,6 +1039,10 @@
         applyZenMode(getZenModePref());
         // Tải danh sách chương qua API ngay từ đầu
         fetchNovelChapters();
+        // Ghi nhận tiến độ đọc
+        if (typeof updateReadingProgress === 'function') {
+            updateReadingProgress(NOVEL_ID, {{ (novel.title_vi or novel.title)|tojson }}, CURRENT_CHAP_INDEX, {{ (chapter.chapter_title_vi or chapter.chapter_title_raw)|tojson }});
+        }
     });
 </script>
 {% endblock %}

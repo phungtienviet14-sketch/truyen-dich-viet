@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import time
 from contextlib import contextmanager
 from html import escape
 from pathlib import Path
@@ -61,7 +62,12 @@ def _atomic_destination(path: Path):
                 os.fsync(file.fileno())
         except OSError:
             pass
-        os.replace(temporary, path)
+        try:
+            os.replace(temporary, path)
+        except OSError:
+            if not path.is_file():
+                time.sleep(0.05)
+                os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
 

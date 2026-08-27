@@ -402,6 +402,44 @@
                     <span class="tracking-wide">Mời trà</span>
                 </button>
 
+                {% if is_user_authenticated %}
+                <!-- Logged In User Dropdown -->
+                <div class="dropdown dropdown-end">
+                    <label tabindex="0" class="btn btn-ghost btn-sm text-xs font-semibold gap-1.5 text-emerald-300 hover:text-white hover:bg-slate-800/80 rounded-xl transition-all cursor-pointer">
+                        <span class="text-base">{{ current_user.avatar or '🧙‍♂️' }}</span>
+                        <span class="hidden sm:inline max-w-[110px] truncate">{{ current_user.display_name or current_user.username }}</span>
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i>
+                    </label>
+                    <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow-2xl bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl w-56 space-y-1 mt-2 text-xs text-slate-200">
+                        <li class="px-3 py-2 border-b border-slate-800">
+                            <span class="text-[10px] text-slate-400 font-mono block">Đạo Hiệu:</span>
+                            <span class="font-bold text-emerald-400 truncate">{{ current_user.display_name or current_user.username }}</span>
+                        </li>
+                        <li>
+                            <button onclick="openFavoritesModal()" class="flex items-center gap-2 py-2 hover:bg-slate-800 rounded-xl">
+                                <i data-lucide="bookmark-check" class="w-4 h-4 text-rose-400"></i> Tủ Truyện Của Tôi
+                            </button>
+                        </li>
+                        <li>
+                            <button onclick="syncUserData(true)" class="flex items-center gap-2 py-2 hover:bg-slate-800 rounded-xl">
+                                <i data-lucide="cloud" class="w-4 h-4 text-cyan-400"></i> Đồng Bộ Đám Mây
+                            </button>
+                        </li>
+                        <li class="border-t border-slate-800 pt-1">
+                            <button onclick="handleUserLogout()" class="flex items-center gap-2 py-2 text-rose-400 hover:bg-rose-500/10 rounded-xl">
+                                <i data-lucide="log-out" class="w-4 h-4"></i> Đăng Xuất
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                {% else %}
+                <!-- Guest Login / Register Button -->
+                <button onclick="openUserAuthModal('login')" class="btn btn-ghost btn-sm text-xs font-semibold gap-1.5 text-slate-300 hover:text-emerald-400 hover:bg-slate-800/80 rounded-xl transition-all" title="Đăng nhập hoặc đăng ký tài khoản">
+                    <i data-lucide="user" class="w-4 h-4 text-emerald-400"></i>
+                    <span class="hidden sm:inline">Đăng Nhập</span>
+                </button>
+                {% endif %}
+
                 {% if is_admin %}
                 <!-- Admin Link -->
                 <a href="/admin" class="btn btn-ghost btn-sm btn-circle text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all" title="Bảng quản trị">
@@ -547,6 +585,94 @@
             </div>
         </div>
         <form method="dialog" class="modal-backdrop bg-black/70">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Modal Đăng Nhập / Đăng Ký Độc Giả (Tiên Gia Hội Quán) -->
+    <dialog id="user_auth_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-md">
+        <div class="modal-box bg-slate-900/95 border border-emerald-500/30 max-w-sm rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 relative overflow-hidden">
+            <!-- Ambient Glow -->
+            <div class="absolute -top-20 -right-20 w-40 h-40 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 relative z-10">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-lg shadow-md shadow-emerald-500/30">
+                        🧙‍♂️
+                    </div>
+                    <div>
+                        <h3 class="font-black text-sm sm:text-base text-slate-100 font-heading" id="userAuthModalTitle">
+                            Tiên Gia Hội Quán
+                        </h3>
+                        <p class="text-[11px] text-slate-400">Đồng bộ tủ truyện & hành trình tu tiên</p>
+                    </div>
+                </div>
+                <button onclick="document.getElementById('user_auth_modal').close()" class="btn btn-ghost btn-xs btn-circle text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <!-- Tabs: Đăng Nhập ↔ Đăng Ký -->
+            <div class="flex p-1 bg-slate-950/80 rounded-2xl border border-slate-800 relative z-10">
+                <button type="button" onclick="switchAuthTab('login')" id="tabBtnLogin" class="flex-1 py-1.5 text-xs font-bold rounded-xl transition-all bg-emerald-500 text-slate-950 shadow-sm">
+                    Đăng Nhập
+                </button>
+                <button type="button" onclick="switchAuthTab('register')" id="tabBtnRegister" class="flex-1 py-1.5 text-xs font-semibold rounded-xl text-slate-400 hover:text-white transition-all">
+                    Đăng Ký
+                </button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="userLoginForm" onsubmit="handleUserLogin(event)" class="space-y-3 relative z-10">
+                <div>
+                    <label class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Tên tài khoản:</label>
+                    <input type="text" id="loginUsername" required autocomplete="username" placeholder="Nhập tên tài khoản..." class="input input-sm w-full bg-slate-800/90 border-slate-700 rounded-xl text-xs text-slate-200 focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Mật khẩu:</label>
+                    <input type="password" id="loginPassword" required autocomplete="current-password" placeholder="Nhập mật khẩu..." class="input input-sm w-full bg-slate-800/90 border-slate-700 rounded-xl text-xs text-slate-200 focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div class="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-400 flex items-start gap-2">
+                    <i data-lucide="info" class="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+                    <span>Tủ truyện & lịch sử đọc trên thiết bị này sẽ được tự động đồng bộ ngay sau khi đăng nhập.</span>
+                </div>
+                <button type="submit" id="btnLoginSubmit" class="btn btn-primary btn-sm w-full rounded-2xl font-bold shadow-lg shadow-emerald-500/25 gap-2">
+                    <i data-lucide="log-in" class="w-4 h-4"></i> Đăng Nhập
+                </button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="userRegisterForm" onsubmit="handleUserRegister(event)" class="space-y-3 hidden relative z-10">
+                <div>
+                    <label class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Tên tài khoản (viết liền không dấu):</label>
+                    <input type="text" id="regUsername" required minlength="3" maxlength="50" autocomplete="username" placeholder="Ví dụ: daohuu_nam, linhnhi99..." class="input input-sm w-full bg-slate-800/90 border-slate-700 rounded-xl text-xs text-slate-200 focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Mật khẩu (tối thiểu 6 ký tự):</label>
+                    <input type="password" id="regPassword" required minlength="6" autocomplete="new-password" placeholder="Tạo mật khẩu..." class="input input-sm w-full bg-slate-800/90 border-slate-700 rounded-xl text-xs text-slate-200 focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Đạo hiệu hiển thị (tùy chọn):</label>
+                    <input type="text" id="regDisplayName" maxlength="100" placeholder="Ví dụ: Thanh Phong Đạo Trưởng..." class="input input-sm w-full bg-slate-800/90 border-slate-700 rounded-xl text-xs text-slate-200 focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Chọn Linh Thú / Avatar:</label>
+                    <div class="grid grid-cols-8 gap-1 p-1 bg-slate-950/60 rounded-xl border border-slate-800 text-center text-lg" id="avatarSelector">
+                        <button type="button" onclick="selectRegAvatar('🧙‍♂️')" class="avatar-opt-btn active p-1 rounded-lg bg-emerald-500/30 border border-emerald-500">🧙‍♂️</button>
+                        <button type="button" onclick="selectRegAvatar('🐉')" class="avatar-opt-btn p-1 rounded-lg hover:bg-slate-800 border border-transparent">🐉</button>
+                        <button type="button" onclick="selectRegAvatar('🦊')" class="avatar-opt-btn p-1 rounded-lg hover:bg-slate-800 border border-transparent">🦊</button>
+                        <button type="button" onclick="selectRegAvatar('🦅')" class="avatar-opt-btn p-1 rounded-lg hover:bg-slate-800 border border-transparent">🦅</button>
+                        <button type="button" onclick="selectRegAvatar('🌸')" class="avatar-opt-btn p-1 rounded-lg hover:bg-slate-800 border border-transparent">🌸</button>
+                        <button type="button" onclick="selectRegAvatar('⚔️')" class="avatar-opt-btn p-1 rounded-lg hover:bg-slate-800 border border-transparent">⚔️</button>
+                        <button type="button" onclick="selectRegAvatar('🍶')" class="avatar-opt-btn p-1 rounded-lg hover:bg-slate-800 border border-transparent">🍶</button>
+                        <button type="button" onclick="selectRegAvatar('🦁')" class="avatar-opt-btn p-1 rounded-lg hover:bg-slate-800 border border-transparent">🦁</button>
+                    </div>
+                    <input type="hidden" id="regAvatar" value="🧙‍♂️" />
+                </div>
+                <button type="submit" id="btnRegSubmit" class="btn btn-primary btn-sm w-full rounded-2xl font-bold shadow-lg shadow-emerald-500/25 gap-2">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i> Tạo Tài Khoản & Đồng Bộ
+                </button>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop bg-black/75">
             <button>close</button>
         </form>
     </dialog>
@@ -746,6 +872,220 @@
                 saveFavorites([]);
                 openFavoritesModal();
                 showToast('Đã xóa toàn bộ tủ truyện', 'info');
+            }
+        }
+
+        // ==========================================
+        // USER AUTH & CLOUD SYNC ENGINE
+        // ==========================================
+        window.isUserLoggedIn = {{ 'true' if is_user_authenticated else 'false' }};
+
+        function getReadingHistory() {
+            try {
+                const hist = JSON.parse(localStorage.getItem('reading_history') || '{}');
+                return typeof hist === 'object' && hist !== null ? hist : {};
+            } catch {
+                return {};
+            }
+        }
+
+        function saveReadingHistory(history) {
+            localStorage.setItem('reading_history', JSON.stringify(history));
+            try {
+                document.cookie = `tdv_read_history=${encodeURIComponent(JSON.stringify(history))};path=/;max-age=2592000;SameSite=Lax`;
+            } catch (e) {}
+        }
+
+        function updateReadingProgress(novelId, novelTitle, chapterIndex, chapterTitle) {
+            const history = getReadingHistory();
+            history[String(novelId)] = {
+                novel_id: Number(novelId),
+                novel_title: novelTitle,
+                chapter_index: Number(chapterIndex),
+                chapter_title: chapterTitle,
+                updated_at: new Date().toISOString()
+            };
+            saveReadingHistory(history);
+            if (window.isUserLoggedIn) {
+                debouncedSyncUserData();
+            }
+        }
+
+        function getReadingData() {
+            let prefs = {};
+            try {
+                prefs = JSON.parse(localStorage.getItem('reader_prefs') || '{}');
+            } catch (e) {}
+            return {
+                favorites: getFavorites(),
+                reading_history: getReadingHistory(),
+                preferences: prefs
+            };
+        }
+
+        let syncTimeout = null;
+        function debouncedSyncUserData() {
+            clearTimeout(syncTimeout);
+            syncTimeout = setTimeout(() => syncUserData(false), 2000);
+        }
+
+        async function syncUserData(notify = false) {
+            const payload = { data: getReadingData() };
+            try {
+                const res = await fetch('/api/user/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    const result = await res.json();
+                    if (result.data) {
+                        if (result.data.favorites && Array.isArray(result.data.favorites)) {
+                            saveFavorites(result.data.favorites);
+                        }
+                        if (result.data.reading_history && typeof result.data.reading_history === 'object') {
+                            saveReadingHistory(result.data.reading_history);
+                        }
+                        if (result.data.preferences && typeof result.data.preferences === 'object') {
+                            localStorage.setItem('reader_prefs', JSON.stringify(result.data.preferences));
+                        }
+                    }
+                    if (notify) showToast('Đã đồng bộ toàn bộ dữ liệu thành công!', 'success', 'cloud');
+                } else if (notify) {
+                    showToast('Không thể đồng bộ. Vui lòng đăng nhập lại.', 'warning');
+                }
+            } catch (err) {
+                if (notify) showToast('Lỗi kết nối khi đồng bộ', 'error');
+            }
+        }
+
+        function openUserAuthModal(tab = 'login') {
+            switchAuthTab(tab);
+            const modal = document.getElementById('user_auth_modal');
+            if (modal) {
+                modal.showModal();
+                lucide.createIcons();
+            }
+        }
+
+        function switchAuthTab(tab) {
+            const loginForm = document.getElementById('userLoginForm');
+            const regForm = document.getElementById('userRegisterForm');
+            const btnLogin = document.getElementById('tabBtnLogin');
+            const btnReg = document.getElementById('tabBtnRegister');
+            const title = document.getElementById('userAuthModalTitle');
+
+            if (tab === 'login') {
+                if (loginForm) loginForm.classList.remove('hidden');
+                if (regForm) regForm.classList.add('hidden');
+                if (btnLogin) btnLogin.className = 'flex-1 py-1.5 text-xs font-bold rounded-xl transition-all bg-emerald-500 text-slate-950 shadow-sm';
+                if (btnReg) btnReg.className = 'flex-1 py-1.5 text-xs font-semibold rounded-xl text-slate-400 hover:text-white transition-all';
+                if (title) title.innerText = 'Tiên Gia Đăng Nhập';
+            } else {
+                if (loginForm) loginForm.classList.add('hidden');
+                if (regForm) regForm.classList.remove('hidden');
+                if (btnReg) btnReg.className = 'flex-1 py-1.5 text-xs font-bold rounded-xl transition-all bg-emerald-500 text-slate-950 shadow-sm';
+                if (btnLogin) btnLogin.className = 'flex-1 py-1.5 text-xs font-semibold rounded-xl text-slate-400 hover:text-white transition-all';
+                if (title) title.innerText = 'Đăng Ký Đạo Hiệu';
+            }
+            lucide.createIcons();
+        }
+
+        function selectRegAvatar(avatar) {
+            const input = document.getElementById('regAvatar');
+            if (input) input.value = avatar;
+            document.querySelectorAll('.avatar-opt-btn').forEach(b => {
+                if (b.innerText.trim() === avatar) {
+                    b.classList.add('active', 'bg-emerald-500/30', 'border-emerald-500');
+                    b.classList.remove('border-transparent');
+                } else {
+                    b.classList.remove('active', 'bg-emerald-500/30', 'border-emerald-500');
+                    b.classList.add('border-transparent');
+                }
+            });
+        }
+
+        async function handleUserLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnLoginSubmit');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Đang đăng nhập...';
+            }
+
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const initialData = getReadingData();
+
+            try {
+                const res = await fetch('/api/user/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, initial_data: initialData })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Đăng nhập không thành công');
+
+                if (data.user && data.user.data) {
+                    if (data.user.data.favorites) saveFavorites(data.user.data.favorites);
+                    if (data.user.data.reading_history) saveReadingHistory(data.user.data.reading_history);
+                    if (data.user.data.preferences) localStorage.setItem('reader_prefs', JSON.stringify(data.user.data.preferences));
+                }
+
+                showToast(`Chào mừng đạo hữu ${data.user.display_name || data.user.username}!`, 'success', 'sparkles');
+                setTimeout(() => window.location.reload(), 500);
+            } catch (err) {
+                showToast(err.message, 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="log-in" class="w-4 h-4"></i> Đăng Nhập';
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        async function handleUserRegister(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnRegSubmit');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Đang tạo tài khoản...';
+            }
+
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const displayName = document.getElementById('regDisplayName').value.trim();
+            const avatar = document.getElementById('regAvatar').value;
+            const initialData = getReadingData();
+
+            try {
+                const res = await fetch('/api/user/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, display_name: displayName, avatar, initial_data: initialData })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Đăng ký không thành công');
+
+                showToast(`Chúc mừng ${data.user.display_name || data.user.username} đã bước vào tiên lộ!`, 'success', 'sparkles');
+                setTimeout(() => window.location.reload(), 500);
+            } catch (err) {
+                showToast(err.message, 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="sparkles" class="w-4 h-4"></i> Tạo Tài Khoản & Đồng Bộ';
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        async function handleUserLogout() {
+            try {
+                await fetch('/api/user/logout', { method: 'POST' });
+                showToast('Đã đăng xuất thành công!', 'info');
+                setTimeout(() => window.location.reload(), 400);
+            } catch (err) {
+                window.location.reload();
             }
         }
 

@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app import config
-from app.auth import RateLimiter, check_origin, get_session, keyed_hash
+from app.auth import RateLimiter, check_origin, get_session, get_user_session, keyed_hash
 from app.database import AsyncSessionLocal, engine, init_db
 from app.models import AuditLog
 from app.routes import admin, auth, public
@@ -34,6 +34,7 @@ app.include_router(admin.router)
 @app.middleware("http")
 async def security_boundary(request: Request, call_next):
     request.state.admin_session = await get_session(request)
+    request.state.user_session, request.state.current_user = await get_user_session(request)
     path = request.url.path
     ip = request.client.host if request.client else "unknown"
     request.state.actor_key = keyed_hash(ip)
