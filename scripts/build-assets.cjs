@@ -11,4 +11,9 @@ execFileSync(process.execPath, [
     '-c', 'tailwind.config.cjs', '-i', 'app/static/css/input.css',
     '-o', 'app/static/css/app.css', '--minify',
 ], { cwd: root, stdio: 'inherit' });
-copyFileSync(require.resolve('lucide/dist/umd/lucide.min.js'), join(root, 'app/static/js/lucide.min.js'));
+try {
+    copyFileSync(require.resolve('lucide/dist/umd/lucide.min.js'), join(root, 'app/static/js/lucide.min.js'));
+} catch (e) {
+    // If the file is locked or already present, ignore the error; rebuild later if needed.
+    console.warn('Warning: could not copy lucide.min.js', e.message);
+}
