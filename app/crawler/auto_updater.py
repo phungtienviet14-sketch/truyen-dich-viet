@@ -5,12 +5,12 @@ import os
 
 from bs4 import BeautifulSoup
 from sqlalchemy import select
-from sqlalchemy.dialects.sqlite import insert
 
-from app.database import AsyncSessionLocal
+from app.database import AsyncSessionLocal, dialect_insert
 from app.models import Novel, SystemSetting
 from app.crawler import get_crawler
 from app.crawler.piaotia import PiaotiaCrawler
+from .identity import work_key
 from .security import same_source_url
 from .sync_store import SyncLease, merge_catalog, raw_candidates, raw_remaining, save_raw, utcnow
 
@@ -60,7 +60,7 @@ class AutoUpdater:
                   "auto_translate": self.auto_translate_on_sync if auto_translate is None else auto_translate}
         self._apply_settings(values)
         async with AsyncSessionLocal() as db:
-            statement = insert(SystemSetting).values(key=SETTINGS_KEY, value=json.dumps(values))
+            statement = dialect_insert(SystemSetting).values(key=SETTINGS_KEY, value=json.dumps(values))
             await db.execute(statement.on_conflict_do_update(
                 index_elements=["key"], set_={"value": statement.excluded.value}))
             await db.commit()
@@ -214,13 +214,21 @@ class AutoUpdater:
         return imported
 
     async def _import_discovered(self, info):
+        identity = work_key(info["title"], info["author"])
         async with AsyncSessionLocal() as db:
             existing = await db.scalar(select(Novel.id).where(Novel.source_url == info["catalog_url"]))
             if existing is not None:
                 return None
+            if identity:
+                # Discovery walks a ranking page; the same work often already
+                # sits in the library under another platform's catalog URL.
+                twin = await db.scalar(select(Novel.id).where(Novel.work_key == identity))
+                if twin is not None:
+                    return None
             novel = Novel(title=info["title"], title_vi=info["title"], author=info["author"],
                           description=info["description"], cover_url=info["cover_url"],
-                          source_url=info["catalog_url"], source_name="piaotia")
+                          source_url=info["catalog_url"], source_name="piaotia",
+                          work_key=identity or None)
             db.add(novel)
             await db.commit()
             return novel.id

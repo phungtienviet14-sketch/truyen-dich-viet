@@ -1,4 +1,6 @@
 import asyncio
+import contextlib
+import itertools
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
@@ -9,14 +11,20 @@ from app.database import AsyncSessionLocal
 from app.models import Chapter, Novel
 
 
+_seeded_books = itertools.count(1)
+
+
 async def seed_novel(count=4, statuses=None):
+    # Each call is a distinct book: source_url is unique per novel.
+    book = next(_seeded_books)
     async with AsyncSessionLocal() as db:
-        novel = Novel(title="Fixture", source_url="https://www.piaotia.com/html/1/1/index.html")
+        novel = Novel(title=f"Fixture {book}",
+                      source_url=f"https://www.piaotia.com/html/1/{book}/index.html")
         db.add(novel)
         await db.flush()
         chapters = [Chapter(novel_id=novel.id, chapter_index=i + 1,
                             chapter_title_raw=f"第{i + 1}章", content_raw="这是正文。",
-                            url=f"https://www.piaotia.com/html/1/1/{i + 1}.html",
+                            url=f"https://www.piaotia.com/html/1/{book}/{i + 1}.html",
                             status=statuses[i] if statuses else "pending") for i in range(count)]
         db.add_all(chapters)
         await db.commit()
@@ -234,3 +242,147 @@ async def test_request_exceeding_daily_budget_pauses_without_calling_api(monkeyp
     async with AsyncSessionLocal() as db:
         assert (await db.get(TranslationJob, queued["job_id"])).status == "paused"
         assert (await db.get(Chapter, ids[0])).status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_embedded_worker_defers_to_a_dedicated_worker_holding_the_lease():
+    from app.embedded_worker import EmbeddedWorker
+    from app.translator.jobs import acquire_lease
+    assert await acquire_lease("dedicated-worker")
+    embedded = EmbeddedWorker()
+    assert not await embedded._claim()
+    assert not embedded.holds_lease
+
+
+@pytest.mark.asyncio
+async def test_embedded_worker_drains_the_queue_when_no_worker_process_exists(monkeypatch):
+    import httpx
+    from app.embedded_worker import EmbeddedWorker
+    from app.translator.worker import TranslationManager
+    from app.translator.job_models import TranslationJob
+
+    async def post(client, url, **kwargs):
+        return httpx.Response(200, request=httpx.Request("POST", url), json={
+            "id": "unit-request", "model": "deepseek-v4-flash",
+            "usage": {"prompt_tokens": 4, "completion_tokens": 6},
+            "choices": [{"finish_reason": "stop", "message": {"content": "Chương 1\n\nNội dung."}}]})
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", post)
+    monkeypatch.setattr("app.crawler.auto_updater.auto_updater.start", AsyncMock())
+    novel_id, ids = await seed_novel(1)
+    queued = await TranslationManager().start_translation(novel_id)
+
+    embedded = EmbeddedWorker()
+    assert await embedded._claim()
+    from app.translator.dispatcher import process_next
+    assert await process_next(embedded.owner)
+    async with AsyncSessionLocal() as db:
+        assert (await db.get(Chapter, ids[0])).status == "completed"
+        assert (await db.get(TranslationJob, queued["job_id"])).status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_embedded_worker_releases_its_lease_on_shutdown():
+    from app.embedded_worker import EmbeddedWorker
+    from app.translator.jobs import acquire_lease, lease_is_healthy
+    embedded = EmbeddedWorker()
+    with_start = AsyncMock()
+    import app.crawler.auto_updater as updater_module
+    original_start, original_stop = updater_module.auto_updater.start, updater_module.auto_updater.stop
+    updater_module.auto_updater.start = with_start
+    updater_module.auto_updater.stop = AsyncMock()
+    try:
+        assert await embedded._claim()
+        assert await lease_is_healthy(embedded.owner)
+        await embedded.stop()
+        assert not embedded.holds_lease
+        # The lease is free again, so a restarted process can pick the queue up.
+        assert await acquire_lease("next-process")
+    finally:
+        updater_module.auto_updater.start = original_start
+        updater_module.auto_updater.stop = original_stop
+
+
+@pytest.mark.asyncio
+async def test_embedded_worker_survives_a_failing_iteration(monkeypatch):
+    import app.embedded_worker as module
+    from app.embedded_worker import EmbeddedWorker
+    for name in ("ERROR_SLEEP", "IDLE_SLEEP", "CONTENDED_SLEEP", "RENEW_INTERVAL"):
+        monkeypatch.setattr(module, name, 0.01)
+    embedded = EmbeddedWorker()
+    calls = []
+
+    async def claim():
+        embedded.holds_lease = True
+        return True
+
+    async def flaky(owner):
+        calls.append(owner)
+        if len(calls) == 1:
+            raise RuntimeError("transient database blip")
+        return False
+
+    monkeypatch.setattr(embedded, "_claim", claim)
+    monkeypatch.setattr(module, "renew_lease", AsyncMock(return_value=True))
+    monkeypatch.setattr("app.translator.dispatcher.process_next", flaky)
+    await embedded.start()
+    await asyncio.sleep(0.3)
+    embedded.task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await embedded.task
+    # A raised iteration must not kill the supervisor: it kept polling after.
+    assert len(calls) >= 2
+
+
+# --- Standalone worker entrypoint (python -m app.worker) --------------------
+
+@pytest.mark.asyncio
+async def test_healthcheck_reports_whether_a_worker_holds_the_lease():
+    from app import worker as worker_module
+    from app.translator.jobs import acquire_lease
+    assert await worker_module.healthcheck() is False
+    assert await acquire_lease("live-worker")
+    assert await worker_module.healthcheck() is True
+
+
+@pytest.mark.asyncio
+async def test_healthcheck_reports_unhealthy_when_the_database_is_unreachable(monkeypatch):
+    from app import worker as worker_module
+    monkeypatch.setattr(worker_module, "lease_is_healthy",
+                        AsyncMock(side_effect=OSError("database unreachable")))
+    assert await worker_module.healthcheck() is False
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_raises_once_the_lease_is_taken_over(monkeypatch):
+    from app import worker as worker_module
+    monkeypatch.setattr(worker_module.asyncio, "sleep", AsyncMock())
+    monkeypatch.setattr(worker_module, "renew_lease", AsyncMock(return_value=False))
+    with pytest.raises(RuntimeError, match="lease"):
+        await worker_module.heartbeat("owner-a")
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_loop_backs_off_when_the_queue_is_empty(monkeypatch):
+    from app import worker as worker_module
+    sleeps = []
+
+    async def record_sleep(seconds):
+        sleeps.append(seconds)
+        if len(sleeps) >= 2:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(worker_module.asyncio, "sleep", record_sleep)
+    monkeypatch.setattr(worker_module, "process_next", AsyncMock(return_value=False))
+    with pytest.raises(asyncio.CancelledError):
+        await worker_module.run_dispatcher("owner-a")
+    assert sleeps == [1, 1]
+
+
+def test_healthcheck_flag_exits_nonzero_without_a_running_worker(monkeypatch):
+    from app import worker as worker_module
+    monkeypatch.setattr("sys.argv", ["app.worker", "--healthcheck"])
+    monkeypatch.setattr(worker_module.asyncio, "run", lambda coro: coro.close() or False)
+    with pytest.raises(SystemExit) as exit_info:
+        worker_module.main()
+    assert exit_info.value.code == 1

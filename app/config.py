@@ -34,6 +34,9 @@ ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "")
 SESSION_SECRET = os.getenv("SESSION_SECRET") or secrets.token_urlsafe(48)
 SESSION_TTL_SECONDS = integer("SESSION_TTL_SECONDS", 28800, 300, 86400)
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", str(APP_ENV == "production")).lower() == "true"
+# Single-service hosts (Render free) have no separate worker process, so the
+# web process must drive the queue and the source sync itself.
+RUN_EMBEDDED_WORKER = os.getenv("RUN_EMBEDDED_WORKER", "0").strip().lower() in ("1", "true", "yes")
 CRAWLER_ALLOWED_HOSTS = tuple(host.strip().lower() for host in os.getenv(
     "CRAWLER_ALLOWED_HOSTS", "www.piaotia.com,piaotia.com,www.piaotian.com,piaotian.com,www.biquge.com,biquge.com"
 ).split(",") if host.strip())

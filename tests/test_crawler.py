@@ -252,3 +252,174 @@ async def test_sync_limit_and_auto_translate_only_ready_raw(monkeypatch, db):
     result = await AutoUpdater().sync_single_novel(novel.id, auto_translate=True)
     assert result["raw_fetched"] == 1 and result["raw_remaining"] == 2 and result["status"] == "partial"
     assert len(enqueue.call_args.kwargs["chapter_ids"]) == 1
+
+
+# --- Cross-platform deduplication ------------------------------------------
+
+@pytest.mark.parametrize("title,author", [
+    ("《凡人修仙传》最新章节", "忘语 著"),
+    ("凡人修仙传_笔趣阁", "忘语"),
+    ("凡人修仙传 全文阅读", " 忘语　"),
+    ("凡人修仙传（无弹窗）", "忘语著"),
+])
+def test_mirrors_of_one_work_share_a_fingerprint(title, author):
+    from app.crawler.identity import work_key
+    assert work_key(title, author) == work_key("凡人修仙传", "忘语")
+
+
+def test_different_works_and_authors_do_not_collide():
+    from app.crawler.identity import work_key
+    assert work_key("凡人修仙传", "忘语") != work_key("斗破苍穹", "忘语")
+    assert work_key("凡人修仙传", "忘语") != work_key("凡人修仙传", "天蚕土豆")
+
+
+@pytest.mark.parametrize("title", ["", "   ", "《》", "最新章节"])
+def test_unparsed_titles_never_produce_a_shared_key(title):
+    from app.crawler.identity import work_key
+    assert work_key(title, "作者") == ""
+
+
+def _fake_crawler(title, author, catalog_url, source_name):
+    from types import SimpleNamespace
+    return SimpleNamespace(
+        get_novel_info=AsyncMock(return_value={
+            "title": title, "author": author, "description": "", "cover_url": "",
+            "source_url": catalog_url, "source_name": source_name, "catalog_url": catalog_url}),
+        get_chapter_list=AsyncMock(return_value=[
+            {"title": "第一章", "url": catalog_url.rsplit("/", 1)[0] + "/1.html", "index": 1}]),
+        get_chapter_content=AsyncMock(return_value={"title": "第一章", "content": "正文"}),
+    )
+
+
+@pytest.mark.asyncio
+async def test_second_platform_is_reported_as_duplicate_not_imported(monkeypatch, admin_client):
+    from sqlalchemy import func, select
+    from app.database import AsyncSessionLocal
+    from app.models import Novel
+
+    monkeypatch.setenv("CRAWLER_ALLOWED_HOSTS", "www.piaotia.com,books.example")
+    monkeypatch.setattr("app.routes.admin.get_crawler", lambda url: _fake_crawler(
+        "凡人修仙传", "忘语", "https://www.piaotia.com/html/1/1/index.html", "piaotia"))
+    first = await admin_client.post("/api/novels/crawl", json={"url": "https://www.piaotia.com/bookinfo/1/1.html"})
+    assert first.json()["status"] == "success"
+
+    # Same work, different platform, different catalog URL.
+    monkeypatch.setattr("app.routes.admin.get_crawler", lambda url: _fake_crawler(
+        "《凡人修仙传》最新章节", "忘语 著", "https://books.example/book/9/index.html", "biquge"))
+    second = await admin_client.post("/api/novels/crawl", json={"url": "https://books.example/book/9/"})
+    body = second.json()
+    assert body["status"] == "duplicate"
+    assert body["novel_id"] == first.json()["novel_id"]
+    async with AsyncSessionLocal() as db:
+        assert await db.scalar(select(func.count(Novel.id))) == 1
+
+
+@pytest.mark.asyncio
+async def test_allow_duplicate_keeps_a_deliberate_second_mirror(monkeypatch, admin_client):
+    from sqlalchemy import func, select
+    from app.database import AsyncSessionLocal
+    from app.models import Novel
+
+    monkeypatch.setenv("CRAWLER_ALLOWED_HOSTS", "www.piaotia.com,books.example")
+    monkeypatch.setattr("app.routes.admin.get_crawler", lambda url: _fake_crawler(
+        "凡人修仙传", "忘语", "https://www.piaotia.com/html/1/1/index.html", "piaotia"))
+    await admin_client.post("/api/novels/crawl", json={"url": "https://www.piaotia.com/bookinfo/1/1.html"})
+
+    monkeypatch.setattr("app.routes.admin.get_crawler", lambda url: _fake_crawler(
+        "凡人修仙传", "忘语", "https://books.example/book/9/index.html", "biquge"))
+    second = await admin_client.post("/api/novels/crawl", json={
+        "url": "https://books.example/book/9/", "allow_duplicate": True})
+    assert second.json()["status"] == "success"
+    async with AsyncSessionLocal() as db:
+        assert await db.scalar(select(func.count(Novel.id))) == 2
+
+
+@pytest.mark.asyncio
+async def test_recrawling_the_same_catalog_adds_no_duplicate_chapters(monkeypatch, admin_client):
+    from sqlalchemy import func, select
+    from app.database import AsyncSessionLocal
+    from app.models import Chapter, Novel
+
+    monkeypatch.setattr("app.routes.admin.get_crawler", lambda url: _fake_crawler(
+        "凡人修仙传", "忘语", "https://www.piaotia.com/html/1/1/index.html", "piaotia"))
+    payload = {"url": "https://www.piaotia.com/bookinfo/1/1.html"}
+    first = await admin_client.post("/api/novels/crawl", json=payload)
+    second = await admin_client.post("/api/novels/crawl", json=payload)
+    assert first.json()["new_chapters"] == 1
+    assert second.json()["new_chapters"] == 0
+    async with AsyncSessionLocal() as db:
+        assert await db.scalar(select(func.count(Novel.id))) == 1
+        assert await db.scalar(select(func.count(Chapter.id))) == 1
+
+
+@pytest.mark.asyncio
+async def test_discovery_skips_a_work_already_held_from_another_platform():
+    from app.crawler.auto_updater import AutoUpdater
+    from app.database import AsyncSessionLocal
+    from app.crawler.identity import work_key
+    from app.models import Novel
+
+    async with AsyncSessionLocal() as db:
+        db.add(Novel(title="凡人修仙传", author="忘语", source_name="biquge",
+                     source_url="https://books.example/book/9/index.html",
+                     work_key=work_key("凡人修仙传", "忘语")))
+        await db.commit()
+    imported = await AutoUpdater()._import_discovered({
+        "title": "《凡人修仙传》最新章节", "author": "忘语 著", "description": "", "cover_url": "",
+        "catalog_url": "https://www.piaotia.com/html/1/1/index.html"})
+    assert imported is None
+
+
+# --- Address pinning: the Render "cannot load novels" regression ------------
+
+@pytest.mark.asyncio
+async def test_ipv4_answers_are_tried_before_ipv6(monkeypatch):
+    import socket
+    from app.crawler.security import resolve_public_addresses
+    # Cloudflare answers AAAA first for the novel sources.
+    resolver = AsyncMock(return_value=[
+        (socket.AF_INET6, 0, 0, "", ("2606:4700:3032::6815:4377", 443, 0, 0)),
+        (socket.AF_INET, 0, 0, "", ("104.21.67.119", 443)),
+    ])
+    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", resolver)
+    assert await resolve_public_addresses("www.piaotia.com") == (
+        "104.21.67.119", "2606:4700:3032::6815:4377")
+
+
+@pytest.mark.asyncio
+async def test_unreachable_address_family_falls_through_to_the_next_answer(monkeypatch):
+    """Render has no outbound IPv6 route: a failed connect must not end the fetch."""
+    import httpx
+    from app.crawler.security import PinnedTransport
+    monkeypatch.setattr("app.crawler.security.resolve_public_addresses",
+                        AsyncMock(return_value=("2606:4700::1", "104.21.67.119")))
+    transport = PinnedTransport()
+    attempted = []
+
+    async def sender(request):
+        attempted.append(request.url.host)
+        if ":" in request.url.host:
+            raise httpx.ConnectError("network unreachable")
+        return httpx.Response(200, text="ok")
+
+    monkeypatch.setattr(transport.transport, "handle_async_request", sender)
+    response = await transport.handle_async_request(
+        httpx.Request("GET", "https://www.piaotia.com/html/1/1/1.html"))
+    assert response.status_code == 200
+    assert attempted == ["2606:4700::1", "104.21.67.119"]
+    await transport.aclose()
+
+
+@pytest.mark.asyncio
+async def test_connect_failure_on_every_address_is_reported(monkeypatch):
+    import httpx
+    from app.crawler.security import PinnedTransport
+    monkeypatch.setattr("app.crawler.security.resolve_public_addresses",
+                        AsyncMock(return_value=("2606:4700::1", "104.21.67.119")))
+    transport = PinnedTransport()
+    monkeypatch.setattr(transport.transport, "handle_async_request",
+                        AsyncMock(side_effect=httpx.ConnectError("unreachable")))
+    with pytest.raises(httpx.ConnectError):
+        await transport.handle_async_request(
+            httpx.Request("GET", "https://www.piaotia.com/html/1/1/1.html"))
+    await transport.aclose()

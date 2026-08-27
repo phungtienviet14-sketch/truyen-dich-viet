@@ -5,6 +5,7 @@ services:
     dockerfilePath: Dockerfile
     plan: free
     region: singapore
+    healthCheckPath: /health/live
     envVars:
       - key: APP_ENV
         value: production
@@ -24,3 +25,13 @@ services:
         value: "true"
       - key: PORT
         value: "8000"
+      # Render's free plan has no separate worker service, so the web process
+      # drives the translation queue and the source sync under the same lease.
+      - key: RUN_EMBEDDED_WORKER
+        value: "1"
+      # Sources must be listed explicitly; the crawler fails closed otherwise.
+      - key: CRAWLER_ALLOWED_HOSTS
+        value: www.piaotia.com,piaotia.com,www.piaotian.com,piaotian.com
+      # Render provides no outbound IPv6 route; pin to the IPv4 answers.
+      - key: CRAWLER_PREFER_IPV6
+        value: "0"

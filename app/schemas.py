@@ -12,6 +12,8 @@ class InputModel(BaseModel):
 class CrawlRequest(InputModel):
     url: str = Field(min_length=1, max_length=2000)
     title_vi: str | None = Field(default=None, min_length=1, max_length=255)
+    # Opt out of cross-platform dedup to keep a second mirror on purpose.
+    allow_duplicate: bool = False
 
 
 class TranslateRequest(InputModel):

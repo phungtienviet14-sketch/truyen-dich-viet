@@ -46,11 +46,22 @@ def same_source_url(base: str, link: str) -> str:
     return candidate
 
 
+def prefer_ipv4() -> bool:
+    """Most PaaS hosts (Render, Fly free tier) have no outbound IPv6 route.
+
+    Chinese novel sources sit behind Cloudflare, whose resolver answers AAAA
+    first, so an unordered pin connects to an unreachable IPv6 literal.
+    """
+    return os.getenv("CRAWLER_PREFER_IPV6", "0").strip().lower() not in ("1", "true", "yes")
+
+
 async def resolve_public_addresses(host: str) -> tuple[str, ...]:
     records = await asyncio.get_running_loop().getaddrinfo(host, 443, type=socket.SOCK_STREAM)
     addresses = tuple(dict.fromkeys(record[4][0] for record in records))
     if not addresses or any(not ipaddress.ip_address(value).is_global for value in addresses):
         raise ValueError("Nguồn phân giải đến địa chỉ mạng riêng hoặc không hợp lệ.")
+    if prefer_ipv4():
+        addresses = tuple(sorted(addresses, key=lambda value: ipaddress.ip_address(value).version))
     return addresses
 
 
@@ -66,13 +77,24 @@ class PinnedTransport(httpx.AsyncBaseTransport):
         addresses = await resolve_public_addresses(source.host)
         # Connect to the validated IP, preserving the source's TLS identity.
         # No keepalive avoids sharing a TLS connection across same-IP hosts.
-        pinned = httpx.Request(
-            request.method, source.copy_with(host=addresses[0]),
-            headers={**dict(request.headers), "host": source.host},
-            stream=request.stream,
-            extensions={**request.extensions, "sni_hostname": source.host},
-        )
-        return await self.transport.handle_async_request(pinned)
+        # Bodyless reads are replayable, so an unreachable address family
+        # (IPv6 on a host without egress) falls through to the next answer.
+        replayable = request.method in ("GET", "HEAD")
+        failure = None
+        for address in addresses:
+            pinned = httpx.Request(
+                request.method, source.copy_with(host=address),
+                headers={**dict(request.headers), "host": source.host},
+                stream=request.stream,
+                extensions={**request.extensions, "sni_hostname": source.host},
+            )
+            try:
+                return await self.transport.handle_async_request(pinned)
+            except (httpx.ConnectError, httpx.ConnectTimeout) as error:
+                failure = error
+                if not replayable:
+                    raise
+        raise failure
 
     async def aclose(self):
         await self.transport.aclose()

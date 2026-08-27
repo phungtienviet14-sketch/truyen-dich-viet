@@ -1,15 +1,18 @@
-"""SQLite single-host persistence with per-connection constraints and migrations."""
+"""Persistence for SQLite (single host) and Postgres (Render/Neon), with migrations."""
 import asyncio
 import importlib.util
+import logging
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import event, text
+from sqlalchemy import event, inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
 from app.config import DATABASE_URL
+
+logger = logging.getLogger(__name__)
 
 
 def get_connect_args(url: str) -> dict:
@@ -102,6 +105,53 @@ async def migrate_sqlite(connection) -> None:
     await connection.execute(text("PRAGMA user_version=2"))
 
 
+async def migrate_novels(connection) -> None:
+    """Additive novel-identity migration, portable across SQLite and Postgres.
+
+    Runs before create_all: on a fresh database the table does not exist yet
+    and create_all builds it with work_key already in place.
+    """
+    def inspect_novels(sync_connection):
+        inspector = inspect(sync_connection)
+        if "novels" not in inspector.get_table_names():
+            return None
+        return {column["name"] for column in inspector.get_columns("novels")}
+
+    columns = await connection.run_sync(inspect_novels)
+    if columns is None:
+        return
+    if "work_key" not in columns:
+        await connection.execute(text("ALTER TABLE novels ADD COLUMN work_key VARCHAR(64)"))
+    await connection.execute(text("CREATE INDEX IF NOT EXISTS ix_novels_work_key ON novels (work_key)"))
+    duplicates = (await connection.execute(text(
+        "SELECT source_url FROM novels GROUP BY source_url HAVING count(*) > 1 LIMIT 5"
+    ))).scalars().all()
+    if duplicates:
+        # Never fail a deploy over pre-existing data; the import path still
+        # refuses new duplicates, and an admin can merge these by hand.
+        logger.warning("Skipping uq_novel_source_url: %d duplicate source_url values remain (e.g. %s)",
+                       len(duplicates), duplicates[0])
+        return
+    await connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_novel_source_url ON novels (source_url)"))
+
+
+async def backfill_work_keys() -> None:
+    """Fingerprint novels imported before work_key existed."""
+    from sqlalchemy import select, update
+    from app.crawler.identity import work_key
+    from app.models import Novel
+    async with AsyncSessionLocal() as db:
+        rows = (await db.execute(select(Novel.id, Novel.title, Novel.author).where(
+            (Novel.work_key.is_(None)) | (Novel.work_key == "")))).all()
+        for row in rows:
+            key = work_key(row.title or "", row.author or "")
+            if key:
+                await db.execute(update(Novel).where(Novel.id == row.id).values(work_key=key))
+        if rows:
+            await db.commit()
+            logger.info("Backfilled work_key for %d novels", len(rows))
+
+
 async def init_db():
     from app import models  # noqa: F401
     if importlib.util.find_spec("app.translator.job_models"):
@@ -113,6 +163,7 @@ async def init_db():
             await connection.commit()
             await connection.execute(text("BEGIN IMMEDIATE"))
             try:
+                await migrate_novels(connection)
                 await migrate_sqlite(connection)
                 await connection.commit()
             except BaseException:
@@ -120,4 +171,6 @@ async def init_db():
                 raise
     else:
         async with engine.begin() as connection:
+            await migrate_novels(connection)
             await connection.run_sync(Base.metadata.create_all)
+    await backfill_work_keys()

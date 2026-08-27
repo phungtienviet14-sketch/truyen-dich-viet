@@ -14,6 +14,9 @@ class Novel(Base):
     cover_url = Column(String(500), nullable=True)
     source_url = Column(String(500), nullable=False)
     source_name = Column(String(100), default="piaotia")
+    # Fingerprint of (normalized title, normalized author). Mirrors of the same
+    # work across platforms share it, so imports can refuse to duplicate a book.
+    work_key = Column(String(64), nullable=True, index=True)
     total_chapters = Column(Integer, default=0)
     translated_chapters = Column(Integer, default=0)
     favorite_count = Column(Integer, default=0)
@@ -24,6 +27,10 @@ class Novel(Base):
     chapters = relationship("Chapter", back_populates="novel", cascade="all, delete-orphan", order_by="Chapter.chapter_index")
     glossaries = relationship("Glossary", back_populates="novel", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="novel", cascade="all, delete-orphan", order_by="desc(Comment.created_at)")
+
+    __table_args__ = (
+        UniqueConstraint("source_url", name="uq_novel_source_url"),
+    )
 
 
 class Chapter(Base):

@@ -19,8 +19,16 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     config.validate_production()
     await init_db()
-    yield
-    await engine.dispose()
+    embedded = None
+    if config.RUN_EMBEDDED_WORKER:
+        from app.embedded_worker import start_embedded_worker
+        embedded = await start_embedded_worker()
+    try:
+        yield
+    finally:
+        if embedded is not None:
+            await embedded.stop()
+        await engine.dispose()
 
 
 app = FastAPI(title="Truyện Dịch Việt", lifespan=lifespan, docs_url=None if config.APP_ENV == "production" else "/docs")

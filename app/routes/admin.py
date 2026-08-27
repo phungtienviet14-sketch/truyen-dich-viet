@@ -9,15 +9,16 @@ from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, func, desc
 from sqlalchemy.orm import load_only
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app import config
 from app.auth import require_admin, keyed_hash, utcnow
-from app.database import get_db, AsyncSessionLocal
+from app.database import get_db, AsyncSessionLocal, dialect_insert
 from app.models import Novel, Chapter, Glossary, SystemSetting, Comment, Interaction
 from app.schemas import (CrawlRequest, TranslateRequest, BatchTranslateRequest, SyncConfigRequest, GlossaryCreate, DiscoverHotRequest, CommentCreate)
 from app.crawler import get_crawler
 from app.crawler.auto_updater import auto_updater
+from app.crawler.identity import work_key
+from app.crawler.sync_store import merge_catalog
 from app.translator import translation_manager
 from app.translator.batch_manager import batch_manager
 from app.exporters import export_to_txt, export_to_epub
@@ -150,62 +151,63 @@ async def crawl_novel_endpoint(payload: CrawlRequest, db: AsyncSession = Depends
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Lỗi khi cào thông tin truyện: {str(e)}")
 
-    existing_res = await db.execute(select(Novel).where(Novel.source_url == novel_info["catalog_url"]))
-    novel = existing_res.scalar_one_or_none()
+    catalog_url = novel_info["catalog_url"]
+    identity = work_key(novel_info["title"], novel_info["author"])
 
-    if not novel:
-        novel = Novel(
-            title=novel_info["title"],
-            title_vi=payload.title_vi or novel_info["title"],
-            author=novel_info["author"],
-            description=novel_info["description"],
-            cover_url=novel_info["cover_url"],
-            source_url=novel_info["catalog_url"],
-            source_name=novel_info["source_name"],
-            total_chapters=0,
-            translated_chapters=0,
-            favorite_count=0,
-            request_count=0
-        )
-        db.add(novel)
+    novel = await db.scalar(select(Novel).where(Novel.source_url == catalog_url))
+    if novel is None and identity and not payload.allow_duplicate:
+        # The same work mirrored on another Chinese platform has a different
+        # catalog URL but the same fingerprint. Report it instead of importing
+        # a second copy that would then be translated and paid for twice.
+        twin = await db.scalar(select(Novel).where(Novel.work_key == identity).order_by(Novel.id))
+        if twin is not None:
+            name = twin.title_vi or twin.title
+            return {
+                "status": "duplicate",
+                "novel_id": twin.id,
+                "title": name,
+                "existing_source_url": twin.source_url,
+                "existing_source_name": twin.source_name,
+                "total_chapters": twin.total_chapters,
+                "message": (f"'{name}' đã có trong thư viện từ nguồn '{twin.source_name}'. "
+                            f"Gửi lại với allow_duplicate=true nếu vẫn muốn nạp bản sao từ nguồn này."),
+            }
+
+    if novel is None:
+        values = {
+            "title": novel_info["title"],
+            "title_vi": payload.title_vi or novel_info["title"],
+            "author": novel_info["author"],
+            "description": novel_info["description"],
+            "cover_url": novel_info["cover_url"],
+            "source_url": catalog_url,
+            "source_name": novel_info["source_name"],
+            "work_key": identity or None,
+        }
+        # Two admins pasting the same link race here; the unique index decides.
+        await db.execute(dialect_insert(Novel).values(**values)
+                         .on_conflict_do_nothing(index_elements=["source_url"]))
         await db.commit()
-        await db.refresh(novel)
+        novel = await db.scalar(select(Novel).where(Novel.source_url == catalog_url))
+        if novel is None:
+            raise HTTPException(status_code=500, detail="Không thể tạo bản ghi truyện.")
 
     try:
-        chapters_data = await crawler.get_chapter_list(novel_info["catalog_url"])
+        chapters_data = await crawler.get_chapter_list(catalog_url)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Lỗi khi cào danh sách chương: {str(e)}")
 
-    existing_chaps_res = await db.execute(
-        select(Chapter.chapter_index).where(Chapter.novel_id == novel.id)
-    )
-    existing_indices = set(existing_chaps_res.scalars().all())
-
-    new_chapters = []
-    for c in chapters_data:
-        if c["index"] not in existing_indices:
-            new_chapters.append(
-                Chapter(
-                    novel_id=novel.id,
-                    chapter_index=c["index"],
-                    chapter_title_raw=c["title"],
-                    url=c["url"],
-                    status="pending"
-                )
-            )
-
-    if new_chapters:
-        db.add_all(new_chapters)
-
-    novel.total_chapters = len(chapters_data)
-    await db.commit()
+    # Same merge path as the background sync: chapters are keyed by source URL,
+    # so a renumbered catalog appends instead of colliding on chapter_index.
+    new_count, total, _ = await merge_catalog(novel.id, catalog_url, chapters_data)
 
     return {
         "status": "success",
         "novel_id": novel.id,
         "title": novel.title,
-        "total_chapters": novel.total_chapters,
-        "message": f"Đã cào thành công {len(chapters_data)} chương của bộ truyện '{novel.title}'."
+        "new_chapters": new_count,
+        "total_chapters": total,
+        "message": f"Đã cào '{novel.title}': thêm {new_count} chương mới, tổng {total} chương."
     }
 
 
