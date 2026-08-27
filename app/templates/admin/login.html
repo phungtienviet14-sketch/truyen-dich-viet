@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="vi" data-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Đăng nhập quản trị — Truyện Dịch Việt</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="icon" href="/static/images/logo.png">
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+    <main class="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl p-7 space-y-6">
+        <a href="/" class="flex items-center gap-3 text-emerald-400 font-bold">
+            <img src="/static/images/logo.png" class="w-12 h-12 rounded-xl" alt="">
+            TRUYỆN DỊCH VIỆT
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold">Đăng nhập quản trị</h1>
+            <p class="mt-2 text-sm text-slate-400">Quản lý nguồn truyện, bản dịch và hàng đợi DeepSeek.</p>
+        </div>
+        {% if error %}<p role="alert" class="p-3 bg-rose-950 text-rose-200 border border-rose-700 rounded-xl">{{ error }}</p>{% endif %}
+        <form action="/admin/login" method="post" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label for="username" class="block text-sm font-semibold mb-2">Tên đăng nhập</label>
+                <input id="username" name="username" autocomplete="username" required maxlength="100" class="input input-bordered w-full bg-slate-800">
+            </div>
+            <div>
+                <label for="password" class="block text-sm font-semibold mb-2">Mật khẩu</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024" class="input input-bordered w-full bg-slate-800">
+            </div>
+            <button type="submit" class="btn w-full bg-emerald-500 text-slate-950 border-none hover:bg-emerald-400">Đăng nhập</button>
+        </form>
+        <a href="/" class="block text-sm text-slate-400 hover:text-white">← Về trang đọc truyện</a>
+    </main>
+</body>
+</html>

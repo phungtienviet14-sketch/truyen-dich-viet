@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+
+{% block title %}{{ novel.title_vi or novel.title }} - Truyện Dịch Việt{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Breadcrumbs -->
+    <div class="text-xs breadcrumbs py-0 text-slate-400">
+        <ul>
+            <li><a href="/" class="gap-1.5 hover:text-emerald-400"><i data-lucide="home" class="w-3.5 h-3.5"></i> Trang chủ</a></li>
+            <li class="font-bold text-emerald-400 line-clamp-1">{{ novel.title_vi or novel.title }}</li>
+        </ul>
+    </div>
+
+    <!-- Novel Header Card (Cinematic Backdrop) -->
+    <div class="relative bg-slate-900/90 border border-slate-800/90 rounded-3xl p-6 sm:p-8 md:p-10 shadow-2xl overflow-hidden backdrop-blur-md">
+        <!-- Cinematic Blurred Cover Backdrop -->
+        {% if novel.cover_url %}
+        <div class="absolute inset-0 bg-cover bg-center opacity-10 blur-3xl scale-125 pointer-events-none" style="background-image: url('{{ novel.cover_url }}');"></div>
+        {% endif %}
+        <div class="absolute -top-24 -right-24 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="relative z-10 flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start">
+            <!-- Cover -->
+            <div class="relative w-36 h-52 sm:w-44 sm:h-64 rounded-2xl overflow-hidden shadow-2xl bg-slate-800 flex-shrink-0 border-2 border-slate-700/80 group">
+                {% if novel.cover_url %}
+                <img src="{{ novel.cover_url }}" alt="{{ novel.title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                {% else %}
+                <div class="w-full h-full bg-slate-800 flex items-center justify-center text-emerald-400">
+                    <i data-lucide="book-open" class="w-14 h-14 opacity-60"></i>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Novel Details -->
+            <div class="flex-1 space-y-4 min-w-0 text-center md:text-left">
+                <div class="space-y-1.5">
+                    <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold font-mono uppercase">
+                        {{ novel.source_name or 'Biquge' }}
+                    </div>
+                    <h1 class="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white font-heading leading-snug">
+                        {{ novel.title_vi or novel.title }}
+                    </h1>
+                    <p class="text-xs text-slate-400 font-mono">Tên gốc: {{ novel.title }} • Tác giả: {{ novel.author or 'Chưa rõ' }}</p>
+                </div>
+
+                <!-- Stats Badges -->
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 text-xs">
+                    <span class="badge badge-md bg-slate-800/90 text-slate-200 border-slate-700 gap-1.5 rounded-xl py-3 px-3">
+                        <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i> {{ novel.author or 'Chưa rõ' }}
+                    </span>
+                    <span class="badge badge-md bg-slate-800/90 text-slate-200 border-slate-700 gap-1.5 rounded-xl font-mono py-3 px-3">
+                        <i data-lucide="layers" class="w-3.5 h-3.5 text-cyan-400"></i> {{ novel.total_chapters }} chương
+                    </span>
+                    <span class="badge badge-md bg-amber-950/90 text-amber-300 border-amber-500/40 gap-1.5 rounded-xl font-bold py-3 px-3 shadow-sm">
+                        🚀 {{ novel.request_count or 0 }} Lượt Vote Dịch
+                    </span>
+                </div>
+
+                <!-- Translation Progress -->
+                {% set pct = (novel.translated_chapters / novel.total_chapters * 100) if novel.total_chapters > 0 else 0 %}
+                <div class="space-y-1.5 bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60 max-w-xl mx-auto md:mx-0">
+                    <div class="flex justify-between items-center text-xs font-semibold">
+                        <span class="text-slate-300 flex items-center gap-1.5">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-400"></i> Tiến độ dịch Tiếng Việt:
+                        </span>
+                        <span class="font-mono {{ 'text-emerald-400' if pct >= 100 else 'text-cyan-400' }} font-bold">
+                            {{ novel.translated_chapters }} / {{ novel.total_chapters }} ch. ({{ pct|round(1) }}%)
+                        </span>
+                    </div>
+                    <progress class="progress progress-primary w-full h-2.5 rounded-full shadow-inner" value="{{ pct|round(1) }}" max="100"></progress>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-2.5 pt-2">
+                    {% if first_translated %}
+                    <a href="/novel/{{ novel.id }}/chapter/{{ first_translated.chapter_index }}" class="btn btn-primary btn-sm rounded-2xl gap-2 font-bold shadow-lg shadow-emerald-500/25 hover:scale-105 transition-all">
+                        <i data-lucide="book-open" class="w-4 h-4"></i> Đọc Từ Đầu (Ch. {{ first_translated.chapter_index }})
+                    </a>
+                    {% elif chapters %}
+                    <a href="/novel/{{ novel.id }}/chapter/1" class="btn btn-primary btn-sm rounded-2xl gap-2 font-bold shadow-lg shadow-emerald-500/25 hover:scale-105 transition-all">
+                        <i data-lucide="book-open" class="w-4 h-4"></i> Đọc Chương 1
+                    </a>
+                    {% endif %}
+
+                    <button data-novel-action="download" data-novel-id="{{ novel.id }}" data-title="{{ novel.title_vi or novel.title }}" data-translated="{{ novel.translated_chapters }}" data-total="{{ novel.total_chapters }}" class="btn btn-outline border-slate-700 text-slate-200 hover:bg-slate-800 btn-sm rounded-2xl gap-2 font-semibold">
+                        <i data-lucide="download" class="w-4 h-4 text-cyan-400"></i> Tải Offline
+                    </button>
+
+                    <button data-novel-action="vote" data-novel-id="{{ novel.id }}" class="btn btn-outline border-amber-500/40 text-amber-400 hover:bg-amber-500/10 btn-sm rounded-2xl gap-2 font-semibold">
+                        <i data-lucide="rocket" class="w-4 h-4"></i> Yêu Cầu Dịch Thêm
+                    </button>
+
+                    <button data-novel-action="favorite" data-novel-id="{{ novel.id }}" data-title="{{ novel.title_vi or novel.title }}" data-cover="{{ novel.cover_url or '' }}" data-author="{{ novel.author or '' }}" data-total="{{ novel.total_chapters }}" id="btnFavNovel_{{ novel.id }}" class="btn btn-outline border-rose-500/40 text-rose-400 hover:bg-rose-500/10 btn-sm rounded-2xl gap-1.5 font-semibold">
+                        <i data-lucide="heart" class="w-4 h-4"></i> Yêu Thích
+                    </button>
+
+                    <!-- Mời trà button in novel detail header -->
+                    <button onclick="openDonateModal()" class="btn btn-sm btn-tea rounded-2xl gap-2 font-semibold transition-all group">
+                        <div class="tea-cup-wrapper">
+                            <svg class="tea-steam-wisp" viewBox="0 0 14 9" fill="none">
+                                <path class="tea-steam-path" d="M3 8 C1 5 5 4 3 1"/>
+                                <path class="tea-steam-path-2" d="M8 9 C6 6 10 5 8 1"/>
+                            </svg>
+                            <svg class="tea-cup-icon w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
+                                <path d="M3 8h14v7a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/>
+                                <line x1="6" x2="6.01" y1="2" y2="2"/>
+                                <line x1="10" x2="10.01" y1="2" y2="2"/>
+                                <line x1="14" x2="14.01" y1="2" y2="2"/>
+                            </svg>
+                        </div>
+                        <span>Mời trà</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Description & Chapters Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left: Description & Comments (2 Cols) -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Description Card -->
+            <div class="bg-slate-900/90 border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-xl space-y-4 backdrop-blur-md">
+                <h3 class="font-black text-lg text-slate-100 flex items-center gap-2 border-b border-slate-800 pb-3 font-heading">
+                    <i data-lucide="info" class="w-5 h-5 text-emerald-400"></i>
+                    Giới Thiệu Tác Phẩm
+                </h3>
+                <div class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line text-justify space-y-3">
+                    {{ novel.description or 'Tiểu thuyết tiên hiệp huyền huyễn đặc sắc, hành trình tu chân ly kỳ và hấp dẫn.' }}
+                </div>
+            </div>
+
+            <!-- Comments Section -->
+            <div class="bg-slate-900/90 border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-xl space-y-4 backdrop-blur-md">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 class="font-black text-lg text-slate-100 flex items-center gap-2 font-heading">
+                        <i data-lucide="message-square" class="w-5 h-5 text-cyan-400"></i>
+                        Đàm Đạo & Bình Luận (<span id="commentCountHeader">{{ comments|length }}</span>)
+                    </h3>
+                </div>
+
+                <!-- Post Comment Form -->
+                <form id="postCommentForm" onsubmit="handlePostComment(event)" class="space-y-3.5 bg-slate-800/50 p-4 sm:p-5 rounded-2xl border border-slate-700/60">
+                    <div class="flex flex-col sm:flex-row gap-2.5 items-start sm:items-center">
+                        <div class="flex items-center gap-1.5 flex-shrink-0">
+                            <span class="text-xs text-slate-400 font-bold">Đạo hiệu:</span>
+                            <input type="text" id="commentUserName" value="Đạo Hữu Vô Danh" placeholder="Nhập tên..." class="input input-bordered input-xs rounded-xl text-xs bg-slate-900 border-slate-700 text-slate-200 w-36" />
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs text-slate-400 font-bold">Biểu tượng:</span>
+                            <div class="flex gap-1" id="avatarSelector">
+                                <button type="button" onclick="selectAvatar('🧙‍♂️')" class="btn btn-xs bg-slate-900 hover:bg-slate-700 border-slate-700 avatar-btn active rounded-lg">🧙‍♂️</button>
+                                <button type="button" onclick="selectAvatar('⚔️')" class="btn btn-xs bg-slate-900 hover:bg-slate-700 border-slate-700 avatar-btn rounded-lg">⚔️</button>
+                                <button type="button" onclick="selectAvatar('🐉')" class="btn btn-xs bg-slate-900 hover:bg-slate-700 border-slate-700 avatar-btn rounded-lg">🐉</button>
+                                <button type="button" onclick="selectAvatar('🌸')" class="btn btn-xs bg-slate-900 hover:bg-slate-700 border-slate-700 avatar-btn rounded-lg">🌸</button>
+                                <button type="button" onclick="selectAvatar('⚡')" class="btn btn-xs bg-slate-900 hover:bg-slate-700 border-slate-700 avatar-btn rounded-lg">⚡</button>
+                            </div>
+                            <input type="hidden" id="commentAvatar" value="🧙‍♂️" />
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <textarea id="commentContent" required placeholder="Chia sẻ cảm nghĩ về bộ truyện với các đồng đạo..." class="textarea textarea-bordered text-xs rounded-2xl bg-slate-900 border-slate-700 text-slate-200 flex-1 min-h-[65px] resize-none focus:border-emerald-500 focus:outline-none"></textarea>
+                        <button type="submit" id="btnSubmitComment" class="btn btn-primary btn-sm rounded-2xl font-bold h-auto shadow-md shadow-emerald-500/20 px-5">Gửi</button>
+                    </div>
+                </form>
+
+                <!-- Comments List -->
+                <div id="commentsList" class="space-y-3 max-h-96 overflow-y-auto pr-1">
+                    {% if comments %}
+                        {% for c in comments %}
+                        <div class="p-3.5 bg-slate-800/40 rounded-2xl border border-slate-800/80 space-y-1.5 text-xs hover:border-slate-700 transition-colors">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-base">{{ c.user_avatar or '🧙‍♂️' }}</span>
+                                    <span class="font-bold text-slate-200">{{ c.user_name }}</span>
+                                </div>
+                                <span class="text-[10px] text-slate-500 font-mono">{{ c.created_at.strftime('%d/%m/%Y %H:%M') if c.created_at else '' }}</span>
+                            </div>
+                            <p class="text-slate-300 leading-relaxed pl-6">{{ c.content }}</p>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div id="noCommentsMsg" class="text-center py-8 text-slate-500 text-xs italic">
+                            Chưa có bình luận nào. Hãy là người đầu tiên để lại cảm nghĩ!
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Chapters List (1 Col) -->
+        <div class="bg-slate-900/90 border border-slate-800/90 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4 h-fit backdrop-blur-md">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="font-black text-base text-slate-100 flex items-center gap-2 font-heading">
+                    <i data-lucide="list" class="w-4 h-4 text-emerald-400"></i>
+                    Danh Sách Chương
+                </h3>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="toggleChapterSort()" id="btnSortChapters" class="btn btn-ghost btn-xs text-slate-300 hover:text-white rounded-lg gap-1" title="Đảo thứ tự sắp xếp">
+                        <i data-lucide="arrow-up-down" class="w-3 h-3"></i>
+                        <span id="sortDirectionLabel" class="text-[10px] font-mono">1 → N</span>
+                    </button>
+                    <span class="text-xs font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md">{{ chapters|length }} ch.</span>
+                </div>
+            </div>
+
+            <!-- Chapter Search -->
+            <div class="relative">
+                <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="chapterSearchInput" onkeyup="filterChapters()" placeholder="Tìm số hoặc tên chương..." class="input input-bordered input-xs w-full pl-8 text-xs rounded-xl bg-slate-800 border-slate-700 text-slate-200 focus:border-emerald-500 focus:outline-none" />
+            </div>
+
+            <!-- Chapter Items -->
+            <div class="space-y-1 max-h-[520px] overflow-y-auto pr-1 flex flex-col" id="chaptersList">
+                {% for chap in chapters %}
+                <a href="/novel/{{ novel.id }}/chapter/{{ chap.chapter_index }}" class="chapter-item flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-xs transition-colors group" data-search="{{ chap.chapter_index }} {{ chap.chapter_title_vi or '' }} {{ chap.chapter_title_raw }}" data-index="{{ chap.chapter_index }}">
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <span class="font-mono text-slate-500 group-hover:text-emerald-400 w-9 text-right flex-shrink-0">{{ chap.chapter_index }}</span>
+                        <span class="truncate {{ 'text-slate-200 font-medium' if chap.status == 'completed' else 'text-slate-400 italic' }}">
+                            {{ chap.chapter_title_vi or chap.chapter_title_raw }}
+                        </span>
+                    </div>
+                    <div>
+                        {% if chap.status == 'completed' %}
+                        <span class="badge badge-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono">Dịch</span>
+                        {% elif chap.status == 'translating' %}
+                        <span class="badge badge-xs bg-amber-500/20 text-amber-400 border border-amber-500/30">Đang dịch</span>
+                        {% else %}
+                        <span class="badge badge-xs bg-slate-800 text-slate-500 border-slate-700">Raw</span>
+                        {% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Tải Truyện Range Download -->
+<dialog id="range_download_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-md">
+    <div class="modal-box bg-slate-900/95 border border-slate-700 max-w-md rounded-3xl p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+                <i data-lucide="download-cloud" class="w-5 h-5 text-emerald-400"></i>
+                <h3 class="font-bold text-base text-slate-100 font-heading">Tải Tiểu Thuyết Offline</h3>
+            </div>
+            <button onclick="document.getElementById('range_download_modal').close()" class="btn btn-ghost btn-xs btn-circle text-slate-400">✕</button>
+        </div>
+
+        <div>
+            <h4 id="dlNovelTitle" class="font-bold text-sm text-emerald-400 line-clamp-1">Tên truyện</h4>
+            <p class="text-xs text-slate-400 mt-0.5">Hiện có <span id="dlMaxTranslated" class="font-bold text-slate-200 font-mono">0</span> chương đã dịch Tiếng Việt.</p>
+        </div>
+
+        <form id="rangeDownloadForm" onsubmit="handleExecuteRangeDownload(event)" class="space-y-3.5">
+            <input type="hidden" id="dlNovelId" value="" />
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="form-control space-y-1">
+                    <label class="text-xs font-bold text-slate-300">Từ chương:</label>
+                    <input type="number" id="dlStartChapter" value="1" min="1" class="input input-bordered input-sm text-xs rounded-xl bg-slate-800 border-slate-700 text-slate-200 font-mono" required />
+                </div>
+                <div class="form-control space-y-1">
+                    <label class="text-xs font-bold text-slate-300">Đến chương:</label>
+                    <input type="number" id="dlEndChapter" value="100" min="1" class="input input-bordered input-sm text-xs rounded-xl bg-slate-800 border-slate-700 text-slate-200 font-mono" required />
+                </div>
+            </div>
+
+            <div class="form-control space-y-1">
+                <label for="dlLang" class="text-xs font-bold text-slate-300">Ngôn ngữ:</label>
+                <select id="dlLang" class="select select-bordered select-sm bg-slate-800 text-slate-200">
+                    <option value="vi">Tiếng Việt — chỉ chương đã dịch hoàn thành</option>
+                    <option value="raw">Nguyên tác — chỉ nội dung đã lưu</option>
+                </select>
+                <p class="text-xs text-slate-400">Nếu thiếu nội dung trong dải đã chọn, hệ thống sẽ thông báo thay vì trộn ngôn ngữ.</p>
+                <label class="text-xs font-bold text-slate-300">Định dạng file:</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="cursor-pointer label border border-slate-700 rounded-2xl p-2.5 bg-slate-800/80 flex items-center justify-between hover:border-emerald-500/50 transition-colors">
+                        <span class="label-text text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                            <i data-lucide="tablet" class="w-4 h-4 text-emerald-400"></i> EPUB (E-reader)
+                        </span>
+                        <input type="radio" name="dlFormat" value="epub" checked class="radio radio-primary radio-xs" />
+                    </label>
+                    <label class="cursor-pointer label border border-slate-700 rounded-2xl p-2.5 bg-slate-800/80 flex items-center justify-between hover:border-cyan-500/50 transition-colors">
+                        <span class="label-text text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                            <i data-lucide="file-text" class="w-4 h-4 text-cyan-400"></i> TXT (Văn bản)
+                        </span>
+                        <input type="radio" name="dlFormat" value="txt" class="radio radio-primary radio-xs" />
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-action border-t border-slate-800 pt-3">
+                <button type="button" onclick="document.getElementById('range_download_modal').close()" class="btn btn-ghost btn-sm rounded-xl text-slate-400">Hủy</button>
+                <button type="submit" id="btnConfirmDownload" class="btn btn-primary btn-sm gap-2 rounded-xl font-bold shadow-md shadow-emerald-500/20">
+                    <i data-lucide="download" class="w-4 h-4"></i> Tải Ngay
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop bg-black/70">
+        <button>close</button>
+    </form>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let isSortAscending = true;
+
+    function toggleChapterSort() {
+        isSortAscending = !isSortAscending;
+        const list = document.getElementById('chaptersList');
+        const items = Array.from(list.querySelectorAll('.chapter-item'));
+        const label = document.getElementById('sortDirectionLabel');
+        
+        items.sort((a, b) => {
+            const idxA = parseInt(a.getAttribute('data-index') || '0');
+            const idxB = parseInt(b.getAttribute('data-index') || '0');
+            return isSortAscending ? idxA - idxB : idxB - idxA;
+        });
+
+        items.forEach(item => list.appendChild(item));
+        if (label) label.innerText = isSortAscending ? '1 → N' : 'N → 1';
+        showToast(isSortAscending ? 'Đã xếp: Từ chương đầu đến cuối' : 'Đã xếp: Từ chương mới nhất', 'info');
+    }
+
+    function filterChapters() {
+        const q = document.getElementById('chapterSearchInput').value.toLowerCase().trim();
+        const items = document.querySelectorAll('.chapter-item');
+        items.forEach(item => {
+            const text = item.getAttribute('data-search').toLowerCase();
+            item.style.display = text.includes(q) ? 'flex' : 'none';
+        });
+    }
+
+    function selectAvatar(avatar) {
+        document.getElementById('commentAvatar').value = avatar;
+        document.querySelectorAll('.avatar-btn').forEach(b => {
+            if (b.innerText.trim() === avatar) {
+                b.classList.add('bg-emerald-500', 'text-white', 'border-emerald-500');
+            } else {
+                b.classList.remove('bg-emerald-500', 'text-white', 'border-emerald-500');
+            }
+        });
+    }
+
+    async function handleVoteRequestNovel(novelId) {
+        try {
+            const res = await fetch(`/api/novels/${novelId}/request-translation`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Yêu cầu chưa được xử lý.');
+            if (res.ok) {
+                showToast('Đã gửi yêu cầu dịch! Cảm ơn đạo hữu đã tiếp sức.', 'success', 'rocket');
+            }
+        } catch (e) {
+            showToast(e.message || 'Lỗi kết nối máy chủ', 'error');
+        }
+    }
+
+    function openRangeDownloadModal(novelId, title, maxTranslated, totalChapters = maxTranslated) {
+        document.getElementById('dlNovelId').value = novelId;
+        document.getElementById('dlNovelTitle').innerText = title;
+        document.getElementById('dlMaxTranslated').innerText = maxTranslated;
+        document.getElementById('dlStartChapter').value = 1;
+        document.getElementById('dlEndChapter').value = maxTranslated > 0 ? Math.min(maxTranslated, 100) : 1;
+        document.getElementById('dlEndChapter').max = Math.max(totalChapters, 1);
+        document.getElementById('range_download_modal').showModal();
+        lucide.createIcons();
+    }
+
+    async function handleExecuteRangeDownload(e) {
+        e.preventDefault();
+        const novelId = document.getElementById('dlNovelId').value;
+        const start = document.getElementById('dlStartChapter').value;
+        const end = document.getElementById('dlEndChapter').value;
+        const format = document.querySelector('input[name="dlFormat"]:checked').value;
+        const lang = document.getElementById('dlLang').value;
+        const button = document.getElementById('btnConfirmDownload');
+        button.disabled = true;
+        try {
+            if (Number(end) < Number(start)) throw new Error('Chương cuối phải lớn hơn hoặc bằng chương đầu.');
+            showToast('Đang tạo file tải về...', 'info', 'download');
+            const params = new URLSearchParams({ format, start, end, lang });
+            const response = await fetch(`/api/novels/${novelId}/download?${params}`);
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.detail || 'Không thể tạo file tải về.');
+            }
+            const url = URL.createObjectURL(await response.blob());
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `truyen-${novelId}-${start}-${end}-${lang}.${format}`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+            document.getElementById('range_download_modal').close();
+            showToast('Đã tạo file tải về.', 'success');
+        } catch (error) {
+            showToast(error.message || 'Lỗi kết nối máy chủ', 'error');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function handlePostComment(e) {
+        e.preventDefault();
+        const userName = document.getElementById('commentUserName').value.trim();
+        const avatar = document.getElementById('commentAvatar').value;
+        const content = document.getElementById('commentContent').value.trim();
+        const btn = document.getElementById('btnSubmitComment');
+
+        btn.disabled = true;
+        try {
+            const res = await fetch('/api/novels/{{ novel.id }}/comments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_name: userName, user_avatar: avatar, content: content })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast('Đã đăng bình luận!', 'success', 'message-square');
+                document.getElementById('commentContent').value = '';
+                
+                const list = document.getElementById('commentsList');
+                const noMsg = document.getElementById('noCommentsMsg');
+                if (noMsg) noMsg.remove();
+
+                const newCard = document.createElement('div');
+                newCard.className = 'p-3.5 bg-slate-800/40 rounded-2xl border border-slate-800/80 space-y-1.5 text-xs hover:border-slate-700 transition-colors opacity-0 transform translate-y-2';
+                const header = ui.element('div', 'flex items-center justify-between');
+                const identity = ui.element('div', 'flex items-center gap-2');
+                identity.append(ui.element('span', 'text-base', avatar), ui.element('span', 'font-bold text-slate-200', userName));
+                header.append(identity, ui.element('span', 'text-[10px] text-slate-500 font-mono', 'Vừa xong'));
+                newCard.append(header, ui.element('p', 'text-slate-300 leading-relaxed pl-6', content));
+                list.insertBefore(newCard, list.firstChild);
+
+                requestAnimationFrame(() => {
+                    newCard.classList.remove('opacity-0', 'translate-y-2');
+                    newCard.classList.add('opacity-100', 'translate-y-0', 'transition-all', 'duration-300');
+                });
+
+                const countH = document.getElementById('commentCountHeader');
+                if (countH) countH.innerText = parseInt(countH.innerText || '0') + 1;
+            } else {
+                showToast('Lỗi: ' + (data.detail || 'Không thể gửi bình luận'), 'error');
+            }
+        } catch (err) {
+            showToast('Lỗi kết nối', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // Update favorite button status on load
+    document.addEventListener('DOMContentLoaded', () => {
+        const favs = getFavorites();
+        const isFav = favs.some(f => f.id === {{ novel.id }});
+        updateFavoriteButtonState({{ novel.id }}, isFav);
+        selectAvatar('🧙‍♂️');
+    });
+</script>
+{% endblock %}

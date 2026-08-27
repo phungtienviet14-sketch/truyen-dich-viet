@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Bảng Quản Trị Dịch Truyện - Truyện Dịch Việt{% endblock %}</title>
+    <link rel="icon" type="image/png" href="/static/images/logo.png">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS & DaisyUI -->
+    <link href="/static/css/app.css" rel="stylesheet">
+    <meta name="admin-authenticated" content="{{ 'true' if is_admin else 'false' }}">
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/lucide.min.js"></script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b1120; }
+        ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 9999px; }
+        
+        body {
+            font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #070d19;
+            color: #f1f5f9;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.03) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        .glass-nav {
+            background: rgba(11, 17, 32, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+    
+    <!-- Admin Navbar -->
+    <nav class="glass-nav sticky top-0 z-40 px-4 md:px-8 py-3 shadow-lg shadow-black/20">
+        <div class="container mx-auto max-w-7xl flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <a href="/admin" class="flex items-center gap-3 group">
+                    <img src="/static/images/logo.png" alt="Truyện Dịch Việt" class="w-10 h-10 rounded-2xl object-cover shadow-lg shadow-emerald-500/20 flex-shrink-0 group-hover:scale-105 transition-transform ring-1 ring-emerald-500/30" />
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-extrabold text-base tracking-tight text-white font-heading">
+                                TRUYỆN DỊCH VIỆT
+                            </span>
+                            <span class="badge badge-xs bg-slate-800 text-emerald-400 border-emerald-500/30 font-mono text-[9px] px-1.5 py-0.5">ADMIN</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 block font-mono">Quản Trị AI Translation Engine</span>
+                    </div>
+                </a>
+            </div>
+
+            <div class="flex items-center gap-3 flex-wrap justify-end">
+                <span class="text-xs text-slate-300">{{ admin_username }}</span>
+                <button type="button" data-admin-logout class="btn btn-sm btn-ghost text-rose-300">Đăng xuất</button>
+                <a href="/" target="_blank" rel="noopener" class="btn btn-ghost btn-sm gap-1.5 text-xs text-slate-300 hover:text-white rounded-xl">
+                    <i data-lucide="external-link" class="w-3.5 h-3.5 text-emerald-400"></i>
+                    <span class="hidden sm:inline">Trang Độc Giả</span>
+                </a>
+                <span class="badge bg-emerald-950 text-emerald-400 border border-emerald-500/40 badge-sm gap-1.5 py-2.5 px-3 rounded-lg font-mono text-[11px]">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>deepseek-v4-flash</span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Global Toast Container for Admin -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+
+    <!-- Admin Main Container -->
+    <main class="flex-1 container mx-auto max-w-7xl px-4 md:px-8 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="p-6 bg-slate-900 text-slate-500 text-xs border-t border-slate-800 mt-12 text-center">
+        <p>© 2026 Truyện Dịch Việt Admin Panel • Quản trị dịch thuật DeepSeek AI & Tự động đồng bộ nguồn ngầm 24/7</p>
+    </footer>
+
+    <script>
+        lucide.createIcons();
+
+        function showToast(message, type = 'info', iconName = null, duration = 3000) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = 'pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl text-xs font-semibold border transition-all duration-300 opacity-0 transform translate-y-2';
+            
+            let bgClass = 'bg-slate-900 text-slate-100 border-slate-700';
+            let defaultIcon = 'info';
+            let iconColor = 'text-cyan-400';
+
+            if (type === 'success') {
+                bgClass = 'bg-emerald-950 text-emerald-100 border-emerald-600';
+                defaultIcon = 'check-circle';
+                iconColor = 'text-emerald-400';
+            } else if (type === 'error') {
+                bgClass = 'bg-rose-950 text-rose-100 border-rose-600';
+                defaultIcon = 'alert-triangle';
+                iconColor = 'text-rose-400';
+            } else if (type === 'warning') {
+                bgClass = 'bg-amber-950 text-amber-100 border-amber-600';
+                defaultIcon = 'sparkles';
+                iconColor = 'text-amber-400';
+            }
+
+            toast.className += ' ' + bgClass;
+            const finalIcon = iconName || defaultIcon;
+
+            ui.toastContents(toast, message, finalIcon, iconColor);
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('opacity-0', 'translate-y-2');
+                toast.classList.add('opacity-100', 'translate-y-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

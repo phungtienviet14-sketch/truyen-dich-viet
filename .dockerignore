@@ -1,0 +1,20 @@
+# Build context allowlist: credentials and databases are never sent to Docker.
+*
+!Dockerfile
+!.dockerignore
+!requirements.txt
+!package.json
+!package-lock.json
+!tailwind.config.cjs
+!scripts/
+scripts/*
+!scripts/build-assets.cjs
+!scripts/backup_sqlite.py
+!app/
+!app/**
+app/**/__pycache__/
+app/**/*.pyc
+app/**/.env*
+app/**/*.db*
+app/**/*.pem
+app/**/*.key

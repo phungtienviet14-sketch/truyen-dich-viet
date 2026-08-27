@@ -1,0 +1,13 @@
+{
+  "name": "truyen-dich-viet-assets",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "node scripts/build-assets.cjs"
+  },
+  "devDependencies": {
+    "daisyui": "4.12.24",
+    "lucide": "0.468.0",
+    "tailwindcss": "3.4.17"
+  }
+}

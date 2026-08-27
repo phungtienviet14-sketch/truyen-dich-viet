@@ -1,0 +1,451 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Phòng Dịch: {{ novel.title_vi or novel.title }} - Quản Trị Truyện Dịch Việt{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Breadcrumbs -->
+    <div class="text-xs breadcrumbs py-0 text-slate-400">
+        <ul>
+            <li><a href="/admin" class="gap-1.5 hover:text-emerald-400"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Bảng Quản Trị</a></li>
+            <li class="font-bold text-emerald-400 line-clamp-1">{{ novel.title_vi or novel.title }}</li>
+        </ul>
+    </div>
+
+    <!-- Novel Header & Quick Stats -->
+    <div class="glass-card rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 relative overflow-hidden">
+        <div class="absolute -right-20 -top-20 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="relative z-10 flex flex-col md:flex-row gap-6 items-start">
+            {% if novel.cover_url %}
+            <img src="{{ novel.cover_url }}" alt="{{ novel.title }}" class="w-28 h-40 object-cover rounded-2xl shadow-xl bg-slate-800 flex-shrink-0 border border-slate-700" />
+            {% else %}
+            <div class="w-28 h-40 bg-slate-800 rounded-2xl flex items-center justify-center text-emerald-400 flex-shrink-0 border border-slate-700">
+                <i data-lucide="book" class="w-10 h-10"></i>
+            </div>
+            {% endif %}
+
+            <div class="flex-1 space-y-3 min-w-0">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h1 class="text-2xl sm:text-3xl font-black tracking-tight font-heading text-slate-100">
+                        {{ novel.title_vi or novel.title }}
+                    </h1>
+                    <div class="flex flex-wrap gap-2">
+                        <a href="/novel/{{ novel.id }}" target="_blank" class="btn btn-xs btn-outline border-slate-700 text-slate-300 hover:text-emerald-400 rounded-xl gap-1.5 font-bold">
+                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Trang Độc Giả
+                        </a>
+                        <button onclick="document.getElementById('glossary_modal').showModal()" class="btn btn-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 rounded-xl gap-1.5 font-bold">
+                            <i data-lucide="book-a" class="w-3.5 h-3.5"></i> Từ Điển ({{ glossaries|length }})
+                        </button>
+                    </div>
+                </div>
+
+                <p class="text-xs text-slate-400 font-mono">Tên gốc: {{ novel.title }} • Tác giả: {{ novel.author or 'Chưa rõ' }}</p>
+                <p class="text-xs text-slate-500 truncate max-w-2xl font-mono">Nguồn: <a href="{{ novel.source_url }}" target="_blank" class="text-emerald-400 hover:underline">{{ novel.source_url }}</a></p>
+
+                <!-- Translation Progress Bar -->
+                <div class="pt-2 space-y-1.5">
+                    {% set pct = (novel.translated_chapters / novel.total_chapters * 100) if novel.total_chapters > 0 else 0 %}
+                    <div class="flex justify-between text-xs font-semibold">
+                        <span class="text-slate-300">Tiến độ dịch thuật:</span>
+                        <span class="text-emerald-400 font-bold font-mono">{{ novel.translated_chapters }} / {{ novel.total_chapters }} chương ({{ pct|round(1) }}%)</span>
+                    </div>
+                    <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden p-0.5 border border-slate-700">
+                        <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500" style="width: {{ pct }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Translation Control Panel & Live SSE Console Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Translation Control Panel (5 Cols) -->
+        <div class="lg:col-span-5 glass-card rounded-3xl p-6 space-y-4 shadow-xl border border-slate-800">
+            <h3 class="font-extrabold text-base flex items-center gap-2 border-b border-slate-800 pb-3 font-heading text-slate-100">
+                <i data-lucide="cpu" class="w-5 h-5 text-emerald-400"></i>
+                Bảng Điều Khiển Dịch Thuật
+            </h3>
+
+            <form id="translateForm" onsubmit="handleStartTranslation(event)" class="space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="form-control space-y-1">
+                        <label class="text-[11px] font-bold text-slate-300">Từ chương:</label>
+                        <input type="number" id="startChapter" value="1" min="1" max="{{ novel.total_chapters }}" class="input input-sm text-xs rounded-xl bg-slate-900 border-slate-700 text-slate-200" />
+                    </div>
+                    <div class="form-control space-y-1">
+                        <label class="text-[11px] font-bold text-slate-300">Đến chương:</label>
+                        <input type="number" id="endChapter" value="{{ novel.total_chapters }}" min="1" max="{{ novel.total_chapters }}" class="input input-sm text-xs rounded-xl bg-slate-900 border-slate-700 text-slate-200" />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 items-center">
+                    <div class="form-control space-y-1">
+                        <label class="text-[11px] font-bold text-slate-300">Số luồng song song:</label>
+                        <select id="concurrency" class="select select-bordered select-sm text-xs rounded-xl bg-slate-900 border-slate-700 text-slate-200">
+                            <option value="1">1 luồng (An toàn)</option>
+                            <option value="2">2 luồng</option>
+                            <option value="3" selected>3 luồng (Khuyên dùng)</option>
+                            <option value="5">5 luồng (Nhanh)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-control pt-5">
+                        <label class="cursor-pointer flex items-center gap-2">
+                            <input type="checkbox" id="retranslateCompleted" class="checkbox checkbox-primary checkbox-xs" />
+                            <span class="text-xs text-slate-300">Dịch lại chương đã xong</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="pt-2 space-y-2.5">
+                    <div class="flex gap-2">
+                        <button type="submit" id="btnStartTrans" class="btn bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white btn-sm flex-1 gap-1.5 font-bold rounded-2xl border-none shadow-md shadow-emerald-500/20">
+                            <i data-lucide="play" class="w-4 h-4"></i> Bắt Đầu Dịch
+                        </button>
+                        <button type="button" onclick="handleStopTranslation()" id="btnStopTrans" class="btn btn-error btn-sm gap-1 font-bold rounded-2xl" disabled>
+                            <i data-lucide="square" class="w-4 h-4"></i> Dừng
+                        </button>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button type="button" onclick="handleTranslateErrors()" class="btn btn-outline border-amber-500/40 text-amber-400 hover:bg-amber-500/10 btn-xs flex-1 gap-1 rounded-xl">
+                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Dịch Lại Chương Lỗi
+                        </button>
+                        <button type="button" onclick="handleRefreshCatalog()" id="btnRefreshCatalog" class="btn btn-outline border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 btn-xs flex-1 gap-1 rounded-xl">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Cập Nhật Mục Lục
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Live SSE Console Output (7 Cols) -->
+        <div class="lg:col-span-7 glass-card rounded-3xl p-6 space-y-3 flex flex-col justify-between shadow-xl border border-slate-800">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="font-extrabold text-sm flex items-center gap-2 font-mono text-emerald-400">
+                    <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
+                    Live Translation Terminal
+                </h3>
+                <span id="sseStatusBadge" class="badge bg-slate-800 text-slate-400 border-slate-700 font-mono text-[10px]">Chờ kết nối...</span>
+            </div>
+
+            <!-- Terminal Output -->
+            <div id="liveTerminal" class="bg-slate-950/95 text-emerald-300 p-4 rounded-2xl font-mono text-[11px] h-64 overflow-y-auto space-y-1.5 border border-slate-800 shadow-inner">
+                <div class="text-slate-600">// Sẵn sàng nhận sự kiện dịch thuật thời gian thực từ DeepSeek AI...</div>
+            </div>
+
+            <div class="flex justify-between items-center text-[10px] text-slate-400 pt-1 font-mono">
+                <span>Engine: <strong class="text-emerald-400">DeepSeek v3 / R1</strong></span>
+                <button onclick="clearTerminal()" class="btn btn-ghost btn-xs text-[10px] text-slate-400 hover:text-white rounded-lg">Xóa màn hình</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chapter Management Table -->
+    <div class="glass-card rounded-3xl p-6 space-y-4 shadow-xl border border-slate-800">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-3">
+            <h3 class="font-extrabold text-base flex items-center gap-2 font-heading text-slate-100">
+                <i data-lucide="table" class="w-5 h-5 text-emerald-400"></i>
+                Danh Mục {{ chapters|length }} Chương Trong Cơ Sở Dữ Liệu
+            </h3>
+            <input type="text" id="adminChapterSearch" onkeyup="filterAdminChapters()" placeholder="Tìm số hoặc tên chương..." class="input input-sm w-48 rounded-xl bg-slate-900 border-slate-700 text-slate-200 text-xs focus:border-emerald-500" />
+        </div>
+
+        <div class="overflow-x-auto max-h-[500px] border border-slate-800 rounded-2xl bg-slate-900/60">
+            <table class="table table-pin-rows table-xs w-full font-mono">
+                <thead>
+                    <tr class="bg-slate-800 text-slate-300 font-bold">
+                        <th class="w-16">#</th>
+                        <th>Tiêu Đề Gốc & Tiếng Việt</th>
+                        <th class="w-32 text-center">Trạng Thái</th>
+                        <th class="w-24 text-right">Xem</th>
+                    </tr>
+                </thead>
+                <tbody id="adminChapterTableBody" class="divide-y divide-slate-800">
+                    {% for chap in chapters %}
+                    <tr class="hover:bg-slate-800/50 admin-chap-row transition-colors" data-title="{{ chap.chapter_title_raw }} {{ chap.chapter_title_vi or '' }} {{ chap.chapter_index }}">
+                        <td class="font-bold text-slate-400">{{ chap.chapter_index }}</td>
+                        <td>
+                            {% if chap.chapter_title_vi %}
+                            <span class="text-emerald-400 font-semibold">{{ chap.chapter_title_vi }}</span>
+                            <span class="text-slate-500 block text-[10px]">{{ chap.chapter_title_raw }}</span>
+                            {% else %}
+                            <span class="text-slate-400">{{ chap.chapter_title_raw }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if chap.status == 'completed' %}
+                            <span class="badge bg-emerald-950 text-emerald-400 border-emerald-500/40 badge-xs font-bold">✓ Hoàn thành</span>
+                            {% elif chap.status == 'translating' %}
+                            <span class="badge bg-amber-950 text-amber-400 border-amber-500/40 badge-xs animate-pulse">Đang dịch...</span>
+                            {% elif chap.status == 'error' %}
+                            <span class="badge bg-rose-950 text-rose-400 border-rose-500/40 badge-xs">Lỗi</span>
+                            {% else %}
+                            <span class="badge bg-slate-800 text-slate-400 border-slate-700 badge-xs">Chờ</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">
+                            <a href="/novel/{{ novel.id }}/chapter/{{ chap.chapter_index }}" target="_blank" class="btn btn-ghost btn-xs text-emerald-400 hover:bg-emerald-500/10 rounded-lg">
+                                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Quản Lý Từ Điển Glossary (Spring-in) -->
+<dialog id="glossary_modal" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box bg-slate-900/95 backdrop-blur-2xl border border-slate-700/80 max-w-2xl rounded-3xl p-6 space-y-4 shadow-2xl animate-spring-in">
+        <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <h3 class="font-extrabold text-lg flex items-center gap-2 text-amber-400 font-heading">
+                <i data-lucide="book-a" class="w-5 h-5"></i>
+                Từ Điển Quy Chuẩn Thuật Ngữ (Glossary)
+            </h3>
+            <button onclick="document.getElementById('glossary_modal').close()" class="btn btn-ghost btn-xs btn-circle text-slate-400 hover:text-white">✕</button>
+        </div>
+        
+        <p class="text-xs text-slate-300">
+            Các từ trong từ điển sẽ được gán cứng vào DeepSeek Prompt để đảm bảo tên nhân vật, địa danh, công pháp luôn dịch đồng nhất 100%.
+        </p>
+
+        <!-- Add Glossary Term Form -->
+        <form id="addGlossaryForm" onsubmit="handleAddGlossary(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-800/70 p-3.5 rounded-2xl border border-slate-700/60">
+            <input type="text" id="gOriginal" placeholder="Từ gốc tiếng Trung (VD: 宁拙)" required class="input input-xs rounded-xl bg-slate-900 border-slate-700 text-slate-200" />
+            <input type="text" id="gTranslated" placeholder="Dịch chuẩn tiếng Việt (VD: Ninh Chuyết)" required class="input input-xs rounded-xl bg-slate-900 border-slate-700 text-slate-200" />
+            <div class="flex gap-2">
+                <input type="text" id="gNote" placeholder="Ghi chú (Nhân vật chính)" class="input input-xs rounded-xl bg-slate-900 border-slate-700 text-slate-200 flex-1" />
+                <button type="submit" class="btn bg-amber-500 hover:bg-amber-600 text-white btn-xs font-bold rounded-xl border-none">Thêm</button>
+            </div>
+        </form>
+
+        <!-- Glossary Table -->
+        <div class="overflow-x-auto max-h-60 border border-slate-800 rounded-2xl bg-slate-900/60">
+            <table class="table table-xs w-full">
+                <thead>
+                    <tr class="bg-slate-800 text-slate-300 font-bold">
+                        <th>Từ Gốc Trung</th>
+                        <th>Bản Dịch Chuẩn</th>
+                        <th>Ghi Chú</th>
+                        <th class="w-10"></th>
+                    </tr>
+                </thead>
+                <tbody id="glossaryTableBody" class="divide-y divide-slate-800">
+                    {% for g in glossaries %}
+                    <tr>
+                        <td class="font-bold text-emerald-400 font-mono">{{ g.original_term }}</td>
+                        <td class="font-semibold text-slate-200">{{ g.translated_term }}</td>
+                        <td class="text-slate-400 text-[11px]">{{ g.note or '' }}</td>
+                        <td>
+                            <button onclick="handleDeleteGlossary({{ g.id }})" class="btn btn-ghost btn-xs text-rose-400 hover:text-rose-300 p-0">✕</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="modal-action border-t border-slate-700/60 pt-3">
+            <button type="button" onclick="document.getElementById('glossary_modal').close()" class="btn btn-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 rounded-xl">Đóng</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop bg-slate-950/70 backdrop-blur-sm">
+        <button>close</button>
+    </form>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let eventSource = null;
+
+    function setupSSE() {
+        if (eventSource) eventSource.close();
+        const badge = document.getElementById('sseStatusBadge');
+        eventSource = new EventSource('/api/stream/{{ novel.id }}');
+
+        eventSource.onopen = () => {
+            badge.innerText = '● Live Connected';
+            badge.className = 'badge bg-emerald-950 text-emerald-400 border-emerald-500/40 font-mono text-[10px]';
+        };
+
+        eventSource.onmessage = (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                logToTerminal(data);
+                if (data.type === 'chapter_success') {
+                    updateChapterRow(data.chapter_index, data.title_vi);
+                } else if (['complete', 'cancelled', 'error'].includes(data.type)) {
+                    document.getElementById('btnStartTrans').disabled = false;
+                    document.getElementById('btnStopTrans').disabled = true;
+                    showToast(data.message || 'Phiên dịch đã kết thúc.', data.type === 'complete' ? 'success' : 'warning');
+                }
+            } catch (err) {
+                console.error("SSE parse error", err);
+            }
+        };
+
+        eventSource.onerror = () => {
+            badge.innerText = '○ Reconnecting...';
+            badge.className = 'badge bg-slate-800 text-slate-400 border-slate-700 font-mono text-[10px]';
+        };
+    }
+
+    function logToTerminal(data) {
+        const term = document.getElementById('liveTerminal');
+        const d = document.createElement('div');
+        const now = new Date().toLocaleTimeString();
+
+        if (data.type === 'chapter_success') {
+            d.className = 'text-emerald-400';
+            d.textContent = `[${now}] ✓ [Chương ${data.chapter_index}]: ${data.title_vi}`;
+        } else if (data.type === 'chapter_start') {
+            d.className = 'text-amber-400';
+            d.textContent = `[${now}] ⚡ [Đang dịch Ch.${data.chapter_index}]: ${data.title_raw}`;
+        } else if (['error', 'chapter_error'].includes(data.type)) {
+            d.className = 'text-rose-400';
+            d.textContent = `[${now}] ✕ Lỗi: ${data.message}`;
+        } else {
+            d.className = 'text-cyan-400 font-mono';
+            d.textContent = `[${now}] ${data.message || JSON.stringify(data)}`;
+        }
+
+        term.appendChild(d);
+        if (term.childElementCount > 500) term.firstElementChild.remove();
+        term.scrollTop = term.scrollHeight;
+    }
+
+    function clearTerminal() {
+        document.getElementById('liveTerminal').innerHTML = '<div class="text-slate-600">// Màn hình đã xóa...</div>';
+    }
+
+    function updateChapterRow(chapIdx, titleVi) {
+        const rows = document.querySelectorAll('.admin-chap-row');
+        rows.forEach(r => {
+            if (r.children[0].innerText.trim() == chapIdx) {
+                r.children[1].replaceChildren(ui.element('span', 'text-emerald-400 font-semibold', titleVi));
+                r.children[2].innerHTML = `<span class="badge bg-emerald-950 text-emerald-400 border-emerald-500/40 badge-xs font-bold">✓ Hoàn thành</span>`;
+            }
+        });
+    }
+
+    async function handleStartTranslation(e) {
+        e.preventDefault();
+        const start = parseInt(document.getElementById('startChapter').value);
+        const end = parseInt(document.getElementById('endChapter').value);
+        const conc = parseInt(document.getElementById('concurrency').value);
+        const ret = document.getElementById('retranslateCompleted').checked;
+
+        document.getElementById('btnStartTrans').disabled = true;
+        document.getElementById('btnStopTrans').disabled = false;
+
+        try {
+            showToast('Khởi động luồng dịch DeepSeek AI...', 'info', 'play');
+            const res = await fetch('/api/novels/{{ novel.id }}/translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    start_chapter: start,
+                    end_chapter: end,
+                    concurrency: conc,
+                    retranslate_completed: ret
+                })
+            });
+            const data = await res.json();
+            logToTerminal({ event: 'info', message: data.message });
+        } catch (err) {
+            logToTerminal({ event: 'error', message: err.message });
+            document.getElementById('btnStartTrans').disabled = false;
+            document.getElementById('btnStopTrans').disabled = true;
+        }
+    }
+
+    async function handleStopTranslation() {
+        try {
+            await fetch('/api/novels/{{ novel.id }}/stop', { method: 'POST' });
+            showToast('Đã gửi yêu cầu dừng luồng dịch', 'warning', 'square');
+            document.getElementById('btnStartTrans').disabled = false;
+            document.getElementById('btnStopTrans').disabled = true;
+        } catch (e) {
+            showToast('Lỗi: ' + e.message, 'error');
+        }
+    }
+
+    async function handleTranslateErrors() {
+        try {
+            showToast('Đang nạp các chương lỗi vào luồng dịch...', 'info', 'alert-triangle');
+            await fetch('/api/novels/{{ novel.id }}/translate-errors', { method: 'POST' });
+            document.getElementById('btnStartTrans').disabled = true;
+            document.getElementById('btnStopTrans').disabled = false;
+        } catch (e) {
+            showToast('Lỗi: ' + e.message, 'error');
+        }
+    }
+
+    async function handleRefreshCatalog() {
+        const btn = document.getElementById('btnRefreshCatalog');
+        btn.disabled = true;
+        btn.innerHTML = `<span class="loading loading-spinner loading-xs"></span> Đang cập nhật...`;
+
+        try {
+            showToast('Đang quét cập nhật danh mục chương mới...', 'info', 'refresh-cw');
+            const res = await fetch('/api/novels/{{ novel.id }}/refresh-catalog', { method: 'POST' });
+            const d = await res.json();
+            showToast(d.message, 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (e) {
+            showToast('Lỗi: ' + e.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = `Cập nhật mục lục`;
+        }
+    }
+
+    async function handleAddGlossary(e) {
+        e.preventDefault();
+        const orig = document.getElementById('gOriginal').value.trim();
+        const trans = document.getElementById('gTranslated').value.trim();
+        const note = document.getElementById('gNote').value.trim();
+
+        try {
+            const res = await fetch('/api/novels/{{ novel.id }}/glossary', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ original_term: orig, translated_term: trans, note: note })
+            });
+            if (res.ok) {
+                showToast('Đã thêm thuật ngữ vào từ điển!', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            }
+        } catch (err) {
+            showToast('Lỗi: ' + err.message, 'error');
+        }
+    }
+
+    async function handleDeleteGlossary(id) {
+        try {
+            await fetch(`/api/glossary/${id}`, { method: 'DELETE' });
+            showToast('Đã xóa thuật ngữ khỏi từ điển', 'info');
+            setTimeout(() => window.location.reload(), 600);
+        } catch (e) {
+            showToast('Lỗi: ' + e.message, 'error');
+        }
+    }
+
+    function filterAdminChapters() {
+        const query = document.getElementById('adminChapterSearch').value.toLowerCase().trim();
+        const rows = document.querySelectorAll('.admin-chap-row');
+        rows.forEach(r => {
+            const text = r.getAttribute('data-title').toLowerCase();
+            r.style.display = text.includes(query) ? '' : 'none';
+        });
+    }
+
+    // Init SSE on mount
+    setupSSE();
+</script>
+{% endblock %}

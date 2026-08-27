@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Truyện Dịch Việt - Nền Tảng Đọc & Tải Tiểu Thuyết Tiên Hiệp{% endblock %}</title>
+    <link rel="icon" type="image/png" href="/static/images/logo.png">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS & DaisyUI -->
+    <link href="/static/css/app.css" rel="stylesheet">
+    <meta name="admin-authenticated" content="{{ 'true' if is_admin else 'false' }}">
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/lucide.min.js"></script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #070d17; }
+        ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #059669; }
+
+        /* Celestial Xianxia Dynamic Atmosphere */
+        body {
+            font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #060a14;
+            color: #f1f5f9;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Ethereal Aurora Glowing Ambient */
+        .xianxia-ambient {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .aurora-orb {
+            position: absolute;
+            border-radius: 9999px;
+            filter: blur(90px);
+            opacity: 0.16;
+            pointer-events: none;
+            will-change: transform, opacity;
+            animation: auroraDrift 20s ease-in-out infinite alternate;
+        }
+
+        .aurora-1 {
+            top: -10%;
+            left: 10%;
+            width: 55vw;
+            height: 55vw;
+            max-width: 700px;
+            max-height: 700px;
+            background: radial-gradient(circle, #10b981 0%, #064e3b 60%, transparent 70%);
+            animation-duration: 24s;
+        }
+
+        .aurora-2 {
+            top: 35%;
+            right: -8%;
+            width: 48vw;
+            height: 48vw;
+            max-width: 600px;
+            max-height: 600px;
+            background: radial-gradient(circle, #f59e0b 0%, #9a3412 60%, transparent 70%);
+            animation-duration: 28s;
+            animation-delay: -8s;
+            opacity: 0.13;
+        }
+
+        .aurora-3 {
+            bottom: -15%;
+            left: 25%;
+            width: 45vw;
+            height: 45vw;
+            max-width: 550px;
+            max-height: 550px;
+            background: radial-gradient(circle, #06b6d4 0%, #0c4a6e 60%, transparent 70%);
+            animation-duration: 22s;
+            animation-delay: -14s;
+            opacity: 0.15;
+        }
+
+        @keyframes auroraDrift {
+            0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+            50% { transform: translate(45px, -35px) scale(1.12) rotate(40deg); }
+            100% { transform: translate(-35px, 45px) scale(0.92) rotate(-35deg); }
+        }
+
+        /* Nav & Cards */
+        .glass-nav {
+            background: rgba(8, 14, 26, 0.85);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .glass-card {
+            background: rgba(13, 21, 38, 0.75);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* 60fps Animations */
+        @keyframes shimmerSweep {
+            0% { transform: translateX(-120%) skewX(-20deg); }
+            40%, 100% { transform: translateX(220%) skewX(-20deg); }
+        }
+
+        @keyframes steamRise {
+            0% { opacity: 0; transform: translateY(0) scale(0.8); }
+            50% { opacity: 0.8; transform: translateY(-4px) scale(1.1); }
+            100% { opacity: 0; transform: translateY(-8px) scale(1.3); }
+        }
+
+        @keyframes floatGentle {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+        }
+
+        @keyframes pulseGlowAmber {
+            0%, 100% { 
+                box-shadow: 0 0 15px rgba(245, 158, 11, 0.3), 0 4px 12px rgba(217, 119, 6, 0.2); 
+            }
+            50% { 
+                box-shadow: 0 0 28px rgba(245, 158, 11, 0.65), 0 6px 18px rgba(249, 115, 22, 0.45); 
+            }
+        }
+
+        @keyframes pulseGlowEmerald {
+            0%, 100% { 
+                box-shadow: 0 0 12px rgba(16, 185, 129, 0.25); 
+            }
+            50% { 
+                box-shadow: 0 0 24px rgba(16, 185, 129, 0.5); 
+            }
+        }
+
+        .animate-float {
+            animation: floatGentle 3s ease-in-out infinite;
+        }
+
+        /* Refined Subtle Tea Button & Animated Tea Cup (Nhã Nhặn, Tinh Tế) */
+        .btn-tea {
+            position: relative;
+            background: rgba(30, 41, 59, 0.75);
+            border: 1px solid rgba(245, 158, 11, 0.35) !important;
+            color: #fcd34d !important;
+            backdrop-filter: blur(10px);
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .btn-tea:hover {
+            background: rgba(245, 158, 11, 0.15) !important;
+            border-color: rgba(245, 158, 11, 0.75) !important;
+            color: #fbbf24 !important;
+            transform: translateY(-1.5px);
+            box-shadow: 0 4px 16px rgba(245, 158, 11, 0.18) !important;
+        }
+
+        .btn-tea:active {
+            transform: translateY(0px) scale(0.97);
+        }
+
+        .btn-tea-glow {
+            /* Backward compatibility alias */
+            position: relative;
+            background: rgba(30, 41, 59, 0.75);
+            border: 1px solid rgba(245, 158, 11, 0.35) !important;
+            color: #fcd34d !important;
+            backdrop-filter: blur(10px);
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .btn-tea-glow:hover {
+            background: rgba(245, 158, 11, 0.15) !important;
+            border-color: rgba(245, 158, 11, 0.75) !important;
+            color: #fbbf24 !important;
+            transform: translateY(-1.5px);
+            box-shadow: 0 4px 16px rgba(245, 158, 11, 0.18) !important;
+        }
+
+        .tea-cup-wrapper {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        .tea-cup-icon {
+            color: #f59e0b;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.3s;
+            animation: teaGentleWobble 4s ease-in-out infinite;
+        }
+
+        .btn-tea:hover .tea-cup-icon,
+        .btn-tea-glow:hover .tea-cup-icon {
+            transform: scale(1.18) rotate(-8deg);
+            color: #fbbf24;
+            animation-play-state: paused;
+        }
+
+        .tea-steam-wisp {
+            position: absolute;
+            top: -7px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 14px;
+            height: 9px;
+            pointer-events: none;
+            opacity: 0.65;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .tea-steam-path {
+            stroke: #f59e0b;
+            stroke-width: 1.3;
+            stroke-linecap: round;
+            fill: none;
+            animation: delicateSteamRise 2.4s ease-in-out infinite;
+        }
+
+        .tea-steam-path-2 {
+            stroke: #fcd34d;
+            stroke-width: 1.1;
+            stroke-linecap: round;
+            fill: none;
+            animation: delicateSteamRise 2.4s ease-in-out infinite 0.8s;
+        }
+
+        .btn-tea:hover .tea-steam-wisp,
+        .btn-tea-glow:hover .tea-steam-wisp {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-2px) scale(1.2);
+        }
+
+        @keyframes teaGentleWobble {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            35% { transform: translateY(-1px) rotate(2deg); }
+            70% { transform: translateY(0.5px) rotate(-2deg); }
+        }
+
+        @keyframes delicateSteamRise {
+            0% {
+                opacity: 0;
+                transform: translateY(2px) scaleX(0.8);
+            }
+            40% {
+                opacity: 0.85;
+                transform: translateY(-2px) scaleX(1.1);
+            }
+            80%, 100% {
+                opacity: 0;
+                transform: translateY(-6px) scaleX(1.3);
+            }
+        }
+
+        /* Floating Quick Tea Action */
+        .floating-tea-widget {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 45;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .floating-tea-widget:hover {
+            transform: translateY(-3px);
+        }
+
+        /* Reading Typography */
+        .font-lora { font-family: 'Lora', Georgia, serif !important; }
+        .font-literata { font-family: 'Literata', serif !important; }
+        .font-merriweather { font-family: 'Merriweather', serif !important; }
+        .font-bevietnam { font-family: 'Be Vietnam Pro', sans-serif !important; }
+
+        /* Reader Content Scoped Themes */
+        .reader-paper.theme-dark {
+            background-color: #111827 !important;
+            color: #f3f4f6 !important;
+            border-color: #1f2937 !important;
+        }
+        .reader-paper.theme-oled {
+            background-color: #000000 !important;
+            color: #e5e7eb !important;
+            border-color: #18181b !important;
+        }
+        .reader-paper.theme-sepia {
+            background-color: #fbf0d9 !important;
+            color: #2d1d0e !important;
+            border-color: #e8d7b8 !important;
+        }
+        .reader-paper.theme-sepia .reader-text {
+            color: #2d1d0e !important;
+        }
+        .reader-paper.theme-light {
+            background-color: #ffffff !important;
+            color: #111827 !important;
+            border-color: #e5e7eb !important;
+        }
+        .reader-paper.theme-light .reader-text {
+            color: #111827 !important;
+        }
+
+        .reading-paragraph {
+            text-indent: 1.8em;
+            margin-bottom: 1.45em;
+            letter-spacing: 0.015em;
+            text-align: justify;
+            transition: color 0.2s, font-size 0.2s, line-height 0.2s;
+        }
+        .reading-paragraph:last-child {
+            margin-bottom: 0;
+        }
+
+        /* QR Frame Corners */
+        .qr-frame {
+            position: relative;
+        }
+        .qr-frame::before, .qr-frame::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            border-color: #f59e0b;
+            pointer-events: none;
+        }
+        .qr-frame::before {
+            top: 4px; left: 4px;
+            border-top: 2.5px solid;
+            border-left: 2.5px solid;
+            border-top-left-radius: 6px;
+        }
+        .qr-frame::after {
+            bottom: 4px; right: 4px;
+            border-bottom: 2.5px solid;
+            border-right: 2.5px solid;
+            border-bottom-right-radius: 6px;
+        }
+    </style>
+<body class="min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white relative">
+
+    <!-- Celestial Xianxia Ethereal Ambient & Aurora Clouds -->
+    <div class="xianxia-ambient">
+        <div class="aurora-orb aurora-1"></div>
+        <div class="aurora-orb aurora-2"></div>
+        <div class="aurora-orb aurora-3"></div>
+    </div>
+    <canvas id="xianxiaCanvas" class="fixed inset-0 pointer-events-none z-0"></canvas>
+
+    <!-- Main Navigation Bar -->
+    <nav class="glass-nav sticky top-0 z-40 px-4 md:px-8 py-3 shadow-lg shadow-black/20">
+        <div class="container mx-auto max-w-7xl flex items-center justify-between gap-3">
+            <!-- Brand Logo & Name (Linh Thú Tiên Hiệp) -->
+            <a href="/" class="flex items-center gap-3 group">
+                <img src="/static/images/logo.png" alt="Truyện Dịch Việt Logo" class="w-10 h-10 rounded-2xl object-cover shadow-lg shadow-emerald-500/25 flex-shrink-0 group-hover:scale-105 transition-transform duration-300 ring-1 ring-emerald-500/40" />
+                <div>
+                    <span class="text-base sm:text-lg font-black tracking-tight text-white font-heading group-hover:text-emerald-400 transition-colors block">
+                        TRUYỆN DỊCH VIỆT
+                    </span>
+                    <span class="hidden sm:block text-[11px] text-slate-400 font-mono">Tiểu Thuyết Tiên Hiệp Cổ Phong</span>
+                </div>
+            </a>
+
+            <!-- Right Nav Actions -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <a href="/" class="btn btn-ghost btn-sm text-xs font-semibold gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-xl transition-all">
+                    <i data-lucide="book-open" class="w-4 h-4 text-emerald-400"></i>
+                    <span class="hidden sm:inline">Thư viện</span>
+                </a>
+
+                <!-- Tủ Truyện Yêu Thích Button -->
+                <button onclick="openFavoritesModal()" class="btn btn-ghost btn-sm text-xs font-semibold gap-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-all" title="Tủ Truyện Yêu Thích">
+                    <i data-lucide="bookmark-check" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Tủ Truyện</span>
+                    <span id="favCountBadge" class="badge badge-xs bg-rose-500 text-white font-bold border-none px-1.5 py-0.5 rounded-full shadow-sm">0</span>
+                </button>
+
+                <!-- Mời trà Button (Tinh Tế, Nhã Nhặn) -->
+                <button onclick="openDonateModal()" class="btn btn-sm btn-tea gap-2 font-semibold text-xs rounded-xl transition-all group" title="Mời trà dịch giả">
+                    <div class="tea-cup-wrapper">
+                        <svg class="tea-steam-wisp" viewBox="0 0 14 9" fill="none">
+                            <path class="tea-steam-path" d="M3 8 C1 5 5 4 3 1"/>
+                            <path class="tea-steam-path-2" d="M8 9 C6 6 10 5 8 1"/>
+                        </svg>
+                        <svg class="tea-cup-icon w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
+                            <path d="M3 8h14v7a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/>
+                            <line x1="6" x2="6.01" y1="2" y2="2"/>
+                            <line x1="10" x2="10.01" y1="2" y2="2"/>
+                            <line x1="14" x2="14.01" y1="2" y2="2"/>
+                        </svg>
+                    </div>
+                    <span class="tracking-wide">Mời trà</span>
+                </button>
+
+                {% if is_admin %}
+                <!-- Admin Link -->
+                <a href="/admin" class="btn btn-ghost btn-sm btn-circle text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all" title="Bảng quản trị">
+                    <i data-lucide="shield" class="w-4 h-4"></i>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Global Toast Container -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+
+    <!-- Main Container -->
+    <main class="flex-1 container mx-auto max-w-7xl px-4 md:px-8 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Floating Tea Action Button (Góc dưới màn hình) -->
+    <div class="floating-tea-widget">
+        <button onclick="openDonateModal()" class="btn btn-sm btn-tea rounded-full px-3.5 gap-2 shadow-xl flex items-center group">
+            <div class="tea-cup-wrapper">
+                <svg class="tea-steam-wisp" viewBox="0 0 14 9" fill="none">
+                    <path class="tea-steam-path" d="M3 8 C1 5 5 4 3 1"/>
+                    <path class="tea-steam-path-2" d="M8 9 C6 6 10 5 8 1"/>
+                </svg>
+                <svg class="tea-cup-icon w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
+                    <path d="M3 8h14v7a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/>
+                    <line x1="6" x2="6.01" y1="2" y2="2"/>
+                    <line x1="10" x2="10.01" y1="2" y2="2"/>
+                    <line x1="14" x2="14.01" y1="2" y2="2"/>
+                </svg>
+            </div>
+            <span class="text-xs font-semibold">Mời trà</span>
+        </button>
+    </div>
+
+    <!-- Footer -->
+    <footer class="p-8 bg-slate-950/80 border-t border-slate-800/80 text-slate-400 text-xs mt-16 backdrop-blur-md">
+        <div class="container mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <img src="/static/images/logo.png" alt="Truyện Dịch Việt" class="w-10 h-10 rounded-2xl object-cover shadow-md ring-1 ring-emerald-500/30 flex-shrink-0" />
+                <div>
+                    <span class="font-bold text-slate-200 text-sm">Truyện Dịch Việt</span>
+                    <p class="text-[11px] text-slate-500">Nền tảng đọc & tải tiểu thuyết tiên hiệp thuần Việt miễn phí.</p>
+                </div>
+            </div>
+            <div class="text-center md:text-right text-[11px] text-slate-500 space-y-0.5">
+                <p>© 2026 Truyện Dịch Việt • Dịch thuật tự động DeepSeek AI 24/7</p>
+                <p>Nội dung phi thương mại nhằm mục đích chia sẻ và giao lưu văn học mạng.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Modal Mời Trà Tiên Quán (Clean & Minimalist QR Modal) -->
+    <dialog id="donate_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-md">
+        <div class="modal-box bg-slate-900/95 border border-amber-500/30 max-w-xs sm:max-w-sm rounded-3xl p-5 sm:p-6 shadow-2xl shadow-amber-950/50 space-y-4 relative overflow-hidden text-center">
+            <!-- Ambient glow -->
+            <div class="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 relative z-10">
+                <div class="flex items-center gap-2.5 text-left">
+                    <div class="w-9 h-9 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-lg shadow-md shadow-amber-500/30">
+                        🍵
+                    </div>
+                    <div>
+                        <h3 class="font-black text-sm sm:text-base text-slate-100 font-heading">
+                            Mời Trà Dịch Giả
+                        </h3>
+                        <p class="text-[11px] text-slate-400">Tiếp thêm linh lực dịch bão chương</p>
+                    </div>
+                </div>
+                <button onclick="document.getElementById('donate_modal').close()" class="btn btn-ghost btn-xs btn-circle text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <!-- 3 Tea Tiers (Chọn Nhanh) -->
+            <div class="grid grid-cols-3 gap-2 relative z-10">
+                <button type="button" onclick="selectTeaTier(10000, 'Tách Trà Xanh (10k)')" class="tea-tier-btn active p-2 rounded-2xl bg-slate-800/90 border border-amber-500 text-center hover:bg-slate-700/80 transition-all">
+                    <div class="text-base mb-0.5">🍵</div>
+                    <div class="text-xs font-bold text-amber-300 font-mono">10k</div>
+                    <div class="text-[9px] text-slate-400">Trà Xanh</div>
+                </button>
+                <button type="button" onclick="selectTeaTier(20000, 'Ấm Trà Thơm (20k)')" class="tea-tier-btn p-2 rounded-2xl bg-slate-800/90 border border-slate-700 text-center hover:bg-slate-700/80 transition-all">
+                    <div class="text-base mb-0.5">🫖</div>
+                    <div class="text-xs font-bold text-slate-200 font-mono">20k</div>
+                    <div class="text-[9px] text-slate-400">Trà Thơm</div>
+                </button>
+                <button type="button" onclick="selectTeaTier(50000, 'Bình Tiên Trà (50k)')" class="tea-tier-btn p-2 rounded-2xl bg-slate-800/90 border border-slate-700 text-center hover:bg-slate-700/80 transition-all">
+                    <div class="text-base mb-0.5">🍶</div>
+                    <div class="text-xs font-bold text-slate-200 font-mono">50k</div>
+                    <div class="text-[9px] text-slate-400">Tiên Trà</div>
+                </button>
+            </div>
+
+            <!-- Exact QR Code Card -->
+            <div class="bg-white p-3 rounded-2xl shadow-xl shadow-black/50 max-w-[240px] mx-auto border-2 border-amber-400/40 relative z-10">
+                <img src="/static/images/donate_qr.png" 
+                    alt="QR Mời Trà" 
+                    class="w-full h-auto object-contain rounded-xl mx-auto block" />
+            </div>
+
+            <p class="text-[11px] text-slate-400 font-medium relative z-10">
+                Quét mã QR bằng ứng dụng Ngân hàng hoặc Ví điện tử
+            </p>
+
+            <!-- Close Button -->
+            <div class="modal-action pt-1 relative z-10 m-0">
+                <button type="button" onclick="document.getElementById('donate_modal').close()" class="btn btn-sm w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 rounded-2xl text-xs font-semibold">
+                    Đóng cửa sổ
+                </button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop bg-black/75">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Modal Tủ Truyện Yêu Thích -->
+    <dialog id="favorites_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-md">
+        <div class="modal-box bg-slate-900/95 border border-slate-700 max-w-lg rounded-3xl p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                        <i data-lucide="bookmark-check" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base text-slate-100 font-heading">Tủ Truyện Của Bạn</h3>
+                        <p class="text-[11px] text-slate-400">Các tác phẩm đang theo dõi & đánh dấu</p>
+                    </div>
+                </div>
+                <button onclick="document.getElementById('favorites_modal').close()" class="btn btn-ghost btn-xs btn-circle text-slate-400">✕</button>
+            </div>
+
+            <div id="favoritesListContainer" class="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                <!-- Injected via JavaScript -->
+            </div>
+
+            <div class="modal-action border-t border-slate-800 pt-3 flex justify-between items-center">
+                <button onclick="clearAllFavorites()" class="btn btn-ghost btn-xs text-rose-400 hover:bg-rose-500/10 rounded-lg">Xóa toàn bộ</button>
+                <button type="button" onclick="document.getElementById('favorites_modal').close()" class="btn btn-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 rounded-xl text-xs font-semibold">Đóng</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop bg-black/70">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <script>
+        lucide.createIcons();
+
+        // Open Donate Modal
+        function openDonateModal() {
+            const modal = document.getElementById('donate_modal');
+            if (modal) {
+                modal.showModal();
+                lucide.createIcons();
+            }
+        }
+
+        // Tea Tier Selection (Đổi phẩm cấp linh trà)
+        function selectTeaTier(amount, label) {
+            document.querySelectorAll('.tea-tier-btn').forEach(b => {
+                b.classList.remove('active', 'border-amber-500', 'bg-slate-700/80');
+                b.classList.add('border-slate-700');
+                const titleDiv = b.querySelector('.font-bold');
+                if (titleDiv) titleDiv.className = 'text-xs font-bold text-slate-200';
+            });
+
+            if (event && event.currentTarget) {
+                event.currentTarget.classList.add('active', 'border-amber-500', 'bg-slate-700/80');
+                event.currentTarget.classList.remove('border-slate-700');
+                const activeTitle = event.currentTarget.querySelector('.font-bold');
+                if (activeTitle) activeTitle.className = 'text-xs font-bold text-amber-300';
+            }
+
+            const memo = document.getElementById('teaMemoText');
+            if (memo) {
+                memo.innerText = `Moi tra ${amount.toLocaleString('vi-VN')}d`;
+            }
+            showToast(`Đã chọn: ${label}`, 'warning', 'sparkles');
+        }
+
+        function copyTeaMemo() {
+            const memo = document.getElementById('teaMemoText');
+            const text = memo ? memo.innerText : 'Moi tra Truyen Dich Viet';
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Đã sao chép nội dung: "' + text + '"', 'success', 'check');
+            }).catch(() => {
+                showToast('Không thể sao chép tự động', 'error');
+            });
+        }
+
+        // Toast Notification System (Hardware Accelerated Glass Card)
+        function showToast(message, type = 'info', iconName = null, duration = 3000) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = 'pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl text-xs font-semibold border transition-all duration-300 opacity-0 transform translate-y-3 backdrop-blur-lg';
+            
+            let bgClass = 'bg-slate-900/95 text-slate-100 border-slate-700 shadow-slate-950/50';
+            let defaultIcon = 'info';
+            let iconColor = 'text-cyan-400';
+
+            if (type === 'success') {
+                bgClass = 'bg-emerald-950/95 text-emerald-100 border-emerald-500/50 shadow-emerald-950/50';
+                defaultIcon = 'check-circle';
+                iconColor = 'text-emerald-400';
+            } else if (type === 'error') {
+                bgClass = 'bg-rose-950/95 text-rose-100 border-rose-500/50 shadow-rose-950/50';
+                defaultIcon = 'alert-triangle';
+                iconColor = 'text-rose-400';
+            } else if (type === 'warning') {
+                bgClass = 'bg-amber-950/95 text-amber-100 border-amber-500/50 shadow-amber-950/50';
+                defaultIcon = 'sparkles';
+                iconColor = 'text-amber-400';
+            }
+
+            toast.className += ' ' + bgClass;
+            const finalIcon = iconName || defaultIcon;
+
+            ui.toastContents(toast, message, finalIcon, iconColor);
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('opacity-0', 'translate-y-3');
+                toast.classList.add('opacity-100', 'translate-y-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-3');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        // Copy STK
+        function copySTK(stk) {
+            navigator.clipboard.writeText(stk).then(() => {
+                showToast('Đã sao chép số tài khoản: ' + stk, 'success', 'check');
+            }).catch(() => {
+                showToast('Không thể sao chép tự động', 'error');
+            });
+        }
+
+        // Favorites Storage
+        function getFavorites() {
+            try {
+                const values = JSON.parse(localStorage.getItem('user_favorites') || '[]');
+                if (!Array.isArray(values)) return [];
+                return values.filter(value => value && Number.isSafeInteger(value.id) && value.id > 0 && typeof value.title === 'string');
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveFavorites(favs) {
+            localStorage.setItem('user_favorites', JSON.stringify(favs));
+            updateFavBadge();
+        }
+
+        function updateFavBadge() {
+            const badge = document.getElementById('favCountBadge');
+            const favs = getFavorites();
+            if (badge) badge.innerText = favs.length;
+        }
+
+        function toggleFavoriteNovel(novelId, title, coverUrl, author, totalChap) {
+            const favorites = getFavorites();
+            const isFav = !favorites.some(f => f.id === novelId);
+            const nextFavorites = isFav
+                ? [{ id: novelId, title, cover: coverUrl, author, total: totalChap, savedAt: new Date().toISOString() }, ...favorites]
+                : favorites.filter(f => f.id !== novelId);
+            showToast(isFav ? 'Đã lưu vào Tủ Truyện!' : 'Đã xóa khỏi Tủ Truyện', isFav ? 'success' : 'info');
+            saveFavorites(nextFavorites);
+            updateFavoriteButtonState(novelId, isFav);
+        }
+
+        function updateFavoriteButtonState(novelId, isFav) {
+            const btn = document.getElementById(`btnFavNovel_${novelId}`);
+            if (!btn) return;
+            if (isFav) {
+                btn.classList.add('bg-rose-500', 'text-white', 'border-rose-500', 'shadow-md', 'shadow-rose-500/30');
+                btn.classList.remove('btn-outline', 'text-rose-400');
+                btn.innerHTML = `<i data-lucide="heart" class="w-4 h-4 fill-white animate-pulse"></i> Đã Yêu Thích`;
+            } else {
+                btn.classList.remove('bg-rose-500', 'text-white', 'border-rose-500', 'shadow-md', 'shadow-rose-500/30');
+                btn.classList.add('btn-outline', 'text-rose-400');
+                btn.innerHTML = `<i data-lucide="heart" class="w-4 h-4"></i> Yêu Thích`;
+            }
+            lucide.createIcons();
+        }
+
+        function openFavoritesModal() {
+            const container = document.getElementById('favoritesListContainer');
+            const favs = getFavorites();
+
+            if (favs.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-10 text-slate-500 space-y-2">
+                        <i data-lucide="bookmark" class="w-10 h-10 mx-auto opacity-30"></i>
+                        <p class="text-xs">Tủ truyện của bạn đang trống.</p>
+                        <p class="text-[11px] text-slate-600">Nhấn biểu tượng trái tim để lưu lại những bộ truyện yêu thích nhé!</p>
+                    </div>
+                `;
+            } else {
+                container.replaceChildren(...favs.map(f => {
+                    const row = ui.element('div', 'flex items-center justify-between gap-3 p-3 bg-slate-800/80 hover:bg-slate-800 rounded-2xl border border-slate-700 transition-all');
+                    const link = ui.element('a', 'flex items-center gap-3 flex-1 min-w-0');
+                    link.href = `/novel/${f.id}`;
+                    const cover = ui.safeImageURL(f.cover || '');
+                    if (f.cover && cover) {
+                        const image = ui.element('img', 'w-10 h-14 object-cover rounded-xl flex-shrink-0 shadow-sm');
+                        image.src = cover;
+                        image.alt = '';
+                        link.append(image);
+                    }
+                    const details = ui.element('div', 'min-w-0');
+                    details.append(ui.element('h4', 'font-bold text-xs text-slate-200 hover:text-emerald-400 truncate transition-colors', f.title));
+                    details.append(ui.element('span', 'text-[10px] text-slate-400', `${f.author || 'Tác giả'} • ${f.total || 0} ch.`));
+                    link.append(details);
+                    const remove = ui.element('button', 'btn btn-ghost btn-xs btn-circle text-slate-400 hover:text-rose-400', '✕');
+                    remove.type = 'button';
+                    remove.setAttribute('aria-label', `Bỏ yêu thích ${f.title}`);
+                    remove.addEventListener('click', () => {
+                        toggleFavoriteNovel(f.id, f.title, f.cover, f.author, f.total);
+                        openFavoritesModal();
+                    });
+                    row.append(link, remove);
+                    return row;
+                }));
+            }
+            lucide.createIcons();
+            document.getElementById('favorites_modal').showModal();
+        }
+
+        function clearAllFavorites() {
+            if (confirm('Bạn có chắc muốn xóa toàn bộ tủ truyện?')) {
+                saveFavorites([]);
+                openFavoritesModal();
+                showToast('Đã xóa toàn bộ tủ truyện', 'info');
+            }
+        }
+
+        // Xianxia Spirit Particles Canvas Engine (Linh Khí & Tinh Thể Tu Chân 60fps)
+        (function initXianxiaCanvas() {
+            const canvas = document.getElementById('xianxiaCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let width, height;
+            let particles = [];
+            const particleCount = window.innerWidth < 768 ? 25 : 45;
+            let mouseX = -1000, mouseY = -1000;
+
+            function resize() {
+                width = canvas.width = window.innerWidth;
+                height = canvas.height = window.innerHeight;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            window.addEventListener('mousemove', (e) => {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            });
+            window.addEventListener('mouseleave', () => {
+                mouseX = -1000;
+                mouseY = -1000;
+            });
+
+            const colors = [
+                { r: 245, g: 158, b: 11 },   // Amber Gold
+                { r: 16, g: 185, b: 129 },   // Jade Emerald
+                { r: 6, g: 182, b: 212 },    // Cyan Spirit
+                { r: 251, g: 191, b: 36 },   // Warm Starlight
+                { r: 52, g: 211, b: 153 }    // Mint Jade
+            ];
+
+            class Particle {
+                constructor() {
+                    this.reset(true);
+                }
+                reset(init = false) {
+                    this.x = Math.random() * width;
+                    this.y = init ? Math.random() * height : height + 10;
+                    this.radius = Math.random() * 2 + 1;
+                    this.baseSpeedY = Math.random() * 0.4 + 0.15;
+                    this.speedY = this.baseSpeedY;
+                    this.speedX = (Math.random() - 0.5) * 0.3;
+                    this.color = colors[Math.floor(Math.random() * colors.length)];
+                    this.alpha = Math.random() * 0.5 + 0.2;
+                    this.maxAlpha = Math.random() * 0.6 + 0.3;
+                    this.alphaSpeed = Math.random() * 0.015 + 0.005;
+                    this.alphaDir = 1;
+                    this.wobbleSpeed = Math.random() * 0.02 + 0.01;
+                    this.wobbleAngle = Math.random() * Math.PI * 2;
+                }
+                update() {
+                    this.wobbleAngle += this.wobbleSpeed;
+                    this.x += this.speedX + Math.sin(this.wobbleAngle) * 0.35;
+                    this.y -= this.speedY;
+
+                    // Mouse proximity interaction (gentle repulsion)
+                    const dx = this.x - mouseX;
+                    const dy = this.y - mouseY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 120) {
+                        const force = (120 - dist) / 120;
+                        this.x += (dx / (dist || 1)) * force * 1.5;
+                        this.y += (dy / (dist || 1)) * force * 1.5;
+                    }
+
+                    // Twinkle
+                    this.alpha += this.alphaSpeed * this.alphaDir;
+                    if (this.alpha >= this.maxAlpha) {
+                        this.alphaDir = -1;
+                    } else if (this.alpha <= 0.1) {
+                        this.alphaDir = 1;
+                    }
+
+                    if (this.y < -10 || this.x < -10 || this.x > width + 10) {
+                        this.reset();
+                    }
+                }
+                draw() {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${this.alpha})`;
+                    ctx.shadowBlur = this.radius * 6;
+                    ctx.shadowColor = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, 0.8)`;
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle());
+            }
+
+            let isRunning = true;
+            document.addEventListener('visibilitychange', () => {
+                isRunning = !document.hidden;
+                if (isRunning) requestAnimationFrame(loop);
+            });
+
+            function loop() {
+                if (!isRunning) return;
+                ctx.clearRect(0, 0, width, height);
+                for (let i = 0; i < particles.length; i++) {
+                    particles[i].update();
+                    particles[i].draw();
+                }
+                requestAnimationFrame(loop);
+            }
+            requestAnimationFrame(loop);
+        })();
+
+        // Init on load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateFavBadge();
+            if (window.location.hash === '#donate') {
+                setTimeout(() => openDonateModal(), 100);
+            }
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

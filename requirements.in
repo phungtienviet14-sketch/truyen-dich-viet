@@ -1,0 +1,15 @@
+# Runtime only. Regenerate requirements.txt with the command in docs/CI_CD.md.
+fastapi>=0.115.0,<1
+uvicorn[standard]>=0.30.0,<1
+jinja2>=3.1.4,<4
+httpx>=0.27.0,<1
+beautifulsoup4>=4.12.0,<5
+python-dotenv>=1.0.0,<2
+sqlalchemy>=2.0.0,<3
+aiosqlite>=0.20.0,<1
+ebooklib>=0.18,<1
+python-multipart>=0.0.9,<1
+tenacity>=8.5.0,<10
+pydantic>=2.7.0,<3
+asyncpg>=0.29.0,<1
+
