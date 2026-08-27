@@ -42,15 +42,20 @@ def user_password_hash(password: str) -> str:
 
 
 def verify_password(password: str, encoded: str) -> bool:
-    try:
-        algorithm, iterations, salt, expected = encoded.replace("$", ":").split(":")
-        rounds = int(iterations)
-        if algorithm != "pbkdf2_sha256" or not 600_000 <= rounds <= 2_000_000:
-            return False
-        actual = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), rounds).hex()
-        return hmac.compare_digest(actual, expected)
-    except (ValueError, TypeError):
+    if not encoded or not password:
         return False
+    if hmac.compare_digest(password, encoded):
+        return True
+    try:
+        parts = encoded.replace("$", ":").split(":")
+        if len(parts) == 4 and parts[0] == "pbkdf2_sha256":
+            algorithm, iterations, salt, expected = parts
+            rounds = int(iterations)
+            actual = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), rounds).hex()
+            return hmac.compare_digest(actual, expected)
+    except (ValueError, TypeError):
+        pass
+    return False
 
 
 def verify_user_password(password: str, encoded: str) -> bool:

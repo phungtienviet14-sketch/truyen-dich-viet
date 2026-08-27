@@ -29,7 +29,23 @@ def dialect_insert(model):
     return sqlite_insert(model)
 
 
-engine = create_async_engine(DATABASE_URL, echo=False, connect_args=get_connect_args(DATABASE_URL))
+def get_engine_kwargs(url: str) -> dict:
+    connect_args = get_connect_args(url)
+    kwargs = {
+        "echo": False,
+        "connect_args": connect_args,
+    }
+    if not url.startswith("sqlite"):
+        kwargs.update({
+            "pool_pre_ping": True,
+            "pool_recycle": 300,
+            "pool_size": 10,
+            "max_overflow": 20,
+        })
+    return kwargs
+
+
+engine = create_async_engine(DATABASE_URL, **get_engine_kwargs(DATABASE_URL))
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
 

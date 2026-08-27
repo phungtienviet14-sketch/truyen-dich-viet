@@ -79,7 +79,7 @@ async def invalid_value(request, error):
 
 @app.exception_handler(Exception)
 async def internal_error(request, error):
-    logger.error("Unhandled error on %s (%s)", request.url.path, type(error).__name__)
+    logger.error("Unhandled error on %s (%s): %s", request.url.path, type(error).__name__, error, exc_info=True)
     return JSONResponse({"detail": "Không thể hoàn tất yêu cầu. Vui lòng thử lại sau."}, status_code=500)
 
 
