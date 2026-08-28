@@ -95,7 +95,7 @@
                     <!-- Search Input -->
                     <div class="relative w-full sm:w-80">
                         <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text" id="novelSearchInput" onkeyup="filterNovels()" placeholder="Tìm tên truyện, tác giả..." class="input input-sm w-full pl-9 pr-8 text-xs rounded-xl bg-slate-800 border-slate-700 text-slate-200 focus:border-emerald-500 focus:outline-none" />
+                        <input type="text" id="novelSearchInput" onkeyup="filterNovels()" placeholder="Lọc trong trang này..." class="input input-sm w-full pl-9 pr-8 text-xs rounded-xl bg-slate-800 border-slate-700 text-slate-200 focus:border-emerald-500 focus:outline-none" />
                         <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs">✕</button>
                     </div>
 
@@ -108,7 +108,7 @@
                 </div>
 
                 <div class="flex items-center gap-3 text-xs font-semibold text-slate-400 w-full lg:w-auto justify-between lg:justify-start pt-1 lg:pt-0">
-                    <span class="bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">Kho: <strong class="text-emerald-400">{{ novels|length }}</strong> bộ truyện</span>
+                    <span class="bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">Kho: <strong class="text-emerald-400">{{ novel_total | default(novels | length, true) }}</strong> bộ truyện</span>
                     <span class="bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">Đã dịch: <strong class="text-cyan-400">{{ total_translated_all }}</strong> chương</span>
                 </div>
             </div>
@@ -208,6 +208,15 @@
             </div>
             {% endfor %}
         </div>
+
+        {# The box above filters the loaded page; whole-library search lives at /tim-kiem. #}
+        {% include "_pagination.html" with context %}
+        {% if total | default(0, true) > page_size | default(0, true) %}
+        <p class="text-center text-[11px] text-slate-500 pt-3">
+            Tìm trong toàn bộ {{ novel_total | default(0, true) }} bộ truyện tại
+            <a href="/tim-kiem" class="text-emerald-400 hover:underline font-semibold">trang tìm kiếm</a>.
+        </p>
+        {% endif %}
 
         <!-- Empty State -->
         <div id="noNovelFound" class="hidden text-center py-16 bg-slate-900/90 rounded-3xl border border-slate-800 space-y-3">

@@ -10,6 +10,9 @@ from app.database import AsyncSessionLocal, dialect_insert
 from app.models import Chapter, Novel, SystemSetting
 from .security import MAX_CATALOG_CHAPTERS, canonical_url, same_source_url
 
+# 5 columns per row; well inside the 65535 bind parameters Postgres allows.
+CATALOG_INSERT_BATCH = 500
+
 
 def utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -68,7 +71,7 @@ async def merge_catalog(novel_id, source_url, catalog):
         rows = list((await db.execute(select(Chapter).where(Chapter.novel_id == novel_id))).scalars())
         existing = {canonical_url(row.url): row for row in rows}
         next_index = max((row.chapter_index for row in rows), default=0)
-        new_count, seen = 0, set()
+        new_count, seen, pending = 0, set(), []
         for item in checked:
             if item["url"] in seen:
                 continue
@@ -76,10 +79,15 @@ async def merge_catalog(novel_id, source_url, catalog):
             if item["url"] in existing:
                 continue  # Source numbering may shift; published URLs stay stable.
             next_index += 1
-            result = await db.execute(dialect_insert(Chapter).values(
-                novel_id=novel_id, chapter_index=next_index,
-                chapter_title_raw=item["title"], url=item["url"], status="pending",
-            ).on_conflict_do_nothing(index_elements=["novel_id", "url"]))
+            pending.append({"novel_id": novel_id, "chapter_index": next_index,
+                            "chapter_title_raw": item["title"], "url": item["url"],
+                            "status": "pending"})
+        # One statement per batch, not per chapter: an 8,000-chapter catalogue
+        # was 8,000 round trips to a managed database in another region.
+        for start in range(0, len(pending), CATALOG_INSERT_BATCH):
+            batch = pending[start:start + CATALOG_INSERT_BATCH]
+            result = await db.execute(dialect_insert(Chapter).values(batch)
+                                      .on_conflict_do_nothing(index_elements=["novel_id", "url"]))
             new_count += result.rowcount
         total = await db.scalar(select(func.count(Chapter.id)).where(Chapter.novel_id == novel_id))
         translated = await db.scalar(select(func.count(Chapter.id)).where(

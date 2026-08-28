@@ -156,3 +156,59 @@ async def test_a_repeat_visit_counts_once_per_day(client, db, sample_novel):
         assert (await client.get(f"/novel/{sample_novel.id}")).status_code == 200
     await db.refresh(sample_novel)
     assert sample_novel.view_count == 1
+
+
+# --- Pagination -------------------------------------------------------------
+
+async def big_novel(db, chapters=250):
+    from app.models import Chapter, Novel
+    novel = Novel(title="大书", title_vi="Truyen Dai",
+                  source_url="https://www.piaotia.com/html/9/9/index.html",
+                  total_chapters=chapters)
+    db.add(novel)
+    await db.flush()
+    db.add_all([Chapter(novel_id=novel.id, chapter_index=i,
+                        chapter_title_raw=f"CH{i:04d}",
+                        url=f"https://www.piaotia.com/html/9/9/{i}.html")
+                for i in range(1, chapters + 1)])
+    await db.commit()
+    return novel
+
+
+async def test_novel_page_sends_one_page_of_chapters_not_the_catalogue(client, db):
+    """A 7,000-chapter novel rendered 6 MB of HTML before this."""
+    novel = await big_novel(db)
+    body = (await client.get(f"/novel/{novel.id}")).text
+    assert "CH0001" in body and "CH0100" in body
+    assert "CH0101" not in body
+    # The header still reports the whole catalogue, not the page.
+    assert "250 ch." in body
+
+
+async def test_novel_page_two_continues_where_page_one_stopped(client, db):
+    novel = await big_novel(db)
+    body = (await client.get(f"/novel/{novel.id}", params={"page": 2})).text
+    assert "CH0101" in body and "CH0200" in body
+    assert "CH0100" not in body and "CH0201" not in body
+
+
+async def test_novel_page_beyond_the_end_clamps_to_the_last_page(client, db):
+    novel = await big_novel(db)
+    body = (await client.get(f"/novel/{novel.id}", params={"page": 999})).text
+    assert "CH0201" in body and "CH0250" in body
+
+
+async def test_homepage_counts_the_library_not_the_visible_page(client, db):
+    from app.models import Novel
+    db.add_all([Novel(title=f"N{i}", source_url=f"https://www.piaotia.com/html/8/{i}/index.html",
+                      total_chapters=10, translated_chapters=1) for i in range(30)])
+    await db.commit()
+    body = (await client.get("/")).text
+    # 30 novels, 24 per page: the count must be the library, not the page.
+    assert ">30</strong> bộ truyện" in body
+
+
+async def test_chapters_api_sends_one_resolved_title(client, db, sample_novel):
+    rows = (await client.get(f"/api/novels/{sample_novel.id}/chapters")).json()
+    assert rows and set(rows[0]) == {"index", "title", "status"}
+    assert rows[0]["title"] == "Chương 1"

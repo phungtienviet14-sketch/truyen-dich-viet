@@ -1,6 +1,12 @@
-{# Expects `page`, `total`, `page_size`, `page_url` (a format string with {page}). #}
+{# Expects `page`, `total`, `page_size`, `page_url` (containing __PAGE__).
+   Defaults so a caller that does not paginate renders nothing instead of
+   raising on undefined arithmetic. #}
+{% set page = page | default(1, true) %}
+{% set total = total | default(0, true) %}
+{% set page_size = page_size | default(0, true) %}
+{% set page_url = page_url | default('', true) %}
 {% set pages = ((total + page_size - 1) // page_size) if page_size else 1 %}
-{% if pages > 1 %}
+{% if pages > 1 and page_url %}
 <nav class="flex items-center justify-center gap-2 pt-8" aria-label="Phân trang">
     {% if page > 1 %}
     <a href="{{ page_url.replace('__PAGE__', (page - 1)|string) }}" class="btn btn-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 rounded-xl gap-1 font-semibold">

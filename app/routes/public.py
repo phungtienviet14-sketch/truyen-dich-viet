@@ -26,22 +26,32 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+CHAPTERS_PER_PAGE = 100
+
 
 @router.get("/", response_class=HTMLResponse)
-async def index_view(request: Request, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Novel).order_by(Novel.request_count.desc(), Novel.updated_at.desc()))
-    novels = result.scalars().all()
-
-    total_chapters = sum(n.total_chapters for n in novels)
-    total_translated = sum(n.translated_chapters for n in novels)
+async def index_view(request: Request, page: int = Query(1, ge=1, le=1000),
+                     db: AsyncSession = Depends(get_db)):
+    # Totals come from the database, not from summing every row in Python: the
+    # library grows without bound and the page only ever shows one screenful.
+    totals = (await db.execute(select(
+        func.count(Novel.id), func.coalesce(func.sum(Novel.total_chapters), 0),
+        func.coalesce(func.sum(Novel.translated_chapters), 0)))).one()
+    query = select(Novel).order_by(Novel.request_count.desc(), Novel.updated_at.desc(), Novel.id)
+    novels, novel_total = await paginate(db, query, page)
 
     return templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
             "novels": novels,
-            "total_chapters_all": total_chapters,
-            "total_translated_all": total_translated,
+            "novel_total": int(totals[0] or 0),
+            "page": page,
+            "total": novel_total,
+            "page_size": PAGE_SIZE,
+            "page_url": "/?page=__PAGE__",
+            "total_chapters_all": int(totals[1] or 0),
+            "total_translated_all": int(totals[2] or 0),
             "auto_updater_stats": auto_updater.last_sync_stats,
             "auto_updater_enabled": auto_updater.is_enabled,
         }
@@ -49,14 +59,25 @@ async def index_view(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/novel/{novel_id}", response_class=HTMLResponse)
-async def novel_detail_view(novel_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def novel_detail_view(novel_id: int, request: Request, page: int = Query(1, ge=1, le=10000),
+                            db: AsyncSession = Depends(get_db)):
     novel_res = await db.execute(select(Novel).where(Novel.id == novel_id))
     novel = novel_res.scalar_one_or_none()
     if not novel:
         raise HTTPException(status_code=404, detail="Không tìm thấy truyện.")
 
+    # Paginated: a 7,000-chapter novel rendered the whole catalogue into one
+    # page, which measured 6 MB of HTML before this.
+    chapter_total = int(await db.scalar(
+        select(func.count(Chapter.id)).where(Chapter.novel_id == novel_id)) or 0)
+    chapter_pages = max(1, -(-chapter_total // CHAPTERS_PER_PAGE))
+    chapter_page = min(max(page, 1), chapter_pages)
     chapters_res = await db.execute(
-        select(Chapter).options(load_only(Chapter.id, Chapter.novel_id, Chapter.chapter_index, Chapter.chapter_title_raw, Chapter.chapter_title_vi, Chapter.status)).where(Chapter.novel_id == novel_id).order_by(Chapter.chapter_index)
+        select(Chapter)
+        .options(load_only(Chapter.id, Chapter.novel_id, Chapter.chapter_index,
+                           Chapter.chapter_title_raw, Chapter.chapter_title_vi, Chapter.status))
+        .where(Chapter.novel_id == novel_id).order_by(Chapter.chapter_index)
+        .limit(CHAPTERS_PER_PAGE).offset((chapter_page - 1) * CHAPTERS_PER_PAGE)
     )
     chapters = chapters_res.scalars().all()
 
@@ -73,6 +94,10 @@ async def novel_detail_view(novel_id: int, request: Request, db: AsyncSession = 
             "novel": novel,
             "chapters": chapters,
             "comments": comments,
+            "chapter_total": chapter_total,
+            "chapter_page": chapter_page,
+            "chapter_pages": chapter_pages,
+            "chapters_per_page": CHAPTERS_PER_PAGE,
         }
     )
 
@@ -148,11 +173,11 @@ async def get_novel_chapters_api(novel_id: int, db: AsyncSession = Depends(get_d
         .where(Chapter.novel_id == novel_id)
         .order_by(Chapter.chapter_index)
     )
+    # One resolved title, not three overlapping ones: the reader drawer only
+    # ever shows the fallback chain, and a 7,000-chapter novel sent ~950 KB.
     return [
         {
             "index": row[0],
-            "title_vi": row[1],
-            "title_raw": row[2],
             "title": row[1] or row[2] or f"Chương {row[0]}",
             "status": row[3] or "pending"
         }
