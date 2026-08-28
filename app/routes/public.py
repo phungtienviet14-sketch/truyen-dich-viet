@@ -126,21 +126,9 @@ async def chapter_reader_view(novel_id: int, chapter_index: int, request: Reques
     )
     next_chapter = next_res.scalar_one_or_none()
 
-    # Load chapter list for in-reader Chapter Drawer / TOC sidebar
-    chapters_res = await db.execute(
-        select(Chapter.chapter_index, Chapter.chapter_title_vi, Chapter.chapter_title_raw, Chapter.status)
-        .where(Chapter.novel_id == novel_id)
-        .order_by(Chapter.chapter_index)
-    )
-    chapters = [
-        {
-            "chapter_index": row[0],
-            "chapter_title_vi": row[1],
-            "chapter_title_raw": row[2],
-            "status": row[3],
-        }
-        for row in chapters_res.all()
-    ]
+    # The drawer builds itself from /api/novels/{id}/chapters, so loading the
+    # catalogue here fetched thousands of rows the template never read -- on the
+    # most-visited page of a reading site.
 
     comments_res = await db.execute(
         select(Comment).where(Comment.novel_id == novel_id, Comment.chapter_index == chapter_index).order_by(desc(Comment.created_at)).limit(30)
@@ -155,7 +143,6 @@ async def chapter_reader_view(novel_id: int, chapter_index: int, request: Reques
             "chapter": chapter,
             "prev_chapter": prev_chapter,
             "next_chapter": next_chapter,
-            "chapters": chapters,
             "comments": comments,
         }
     )

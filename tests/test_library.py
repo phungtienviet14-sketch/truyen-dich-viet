@@ -212,3 +212,14 @@ async def test_chapters_api_sends_one_resolved_title(client, db, sample_novel):
     rows = (await client.get(f"/api/novels/{sample_novel.id}/chapters")).json()
     assert rows and set(rows[0]) == {"index", "title", "status"}
     assert rows[0]["title"] == "Chương 1"
+
+
+async def test_reader_page_does_not_load_the_catalogue(client, db):
+    """The drawer fetches its own list; loading it server-side read thousands
+    of rows the template never used, on the most-visited page."""
+    novel = await big_novel(db, chapters=250)
+    body = (await client.get(f"/novel/{novel.id}/chapter/1")).text
+    # The chapter being read is present; none of its neighbours are.
+    assert "CH0001" in body
+    for other in ("CH0002", "CH0100", "CH0250"):
+        assert other not in body
