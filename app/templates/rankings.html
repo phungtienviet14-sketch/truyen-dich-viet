@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Bảng xếp hạng - Truyện Dịch Việt{% endblock %}
+
+{% block content %}
+<div class="container mx-auto max-w-7xl px-4 md:px-8 py-8 space-y-7">
+
+    <header class="space-y-3">
+        <h1 class="text-3xl sm:text-4xl font-black tracking-tight font-heading text-white flex items-center gap-3">
+            <i data-lucide="trophy" class="w-8 h-8 text-emerald-400"></i> Bảng Xếp Hạng
+        </h1>
+        <p class="text-sm text-slate-400 max-w-2xl leading-relaxed">
+            Hai bảng đo hai thứ khác nhau: bảng Việt đếm hoạt động của độc giả trên trang này,
+            bảng Trung lấy chính số liệu mà trang nguồn công bố.
+        </p>
+    </header>
+
+    <!-- Board switch -->
+    <div class="flex flex-wrap gap-2">
+        <a href="/bang-xep-hang?board=viet"
+           class="btn btn-sm rounded-xl gap-2 font-bold border {{ 'bg-emerald-500 text-slate-950 border-emerald-500 hover:bg-emerald-400' if board == 'viet' else 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800' }}">
+            <i data-lucide="users" class="w-4 h-4"></i> Bảng Việt
+        </a>
+        <a href="/bang-xep-hang?board=trung"
+           class="btn btn-sm rounded-xl gap-2 font-bold border {{ 'bg-emerald-500 text-slate-950 border-emerald-500 hover:bg-emerald-400' if board == 'trung' else 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800' }}">
+            <i data-lucide="globe" class="w-4 h-4"></i> Bảng Trung (nguồn)
+        </a>
+    </div>
+
+    <!-- Sort chips -->
+    <div class="flex flex-wrap gap-2 items-center">
+        <span class="text-[11px] uppercase tracking-wider text-slate-500 font-mono mr-1">Xếp theo</span>
+        {% for key, entry in (cn_orderings if board == 'trung' else vi_orderings).items() %}
+        <a href="/bang-xep-hang?board={{ board }}&sort={{ key }}"
+           class="badge badge-lg rounded-xl border text-xs font-semibold px-3 py-3 transition-colors {{ 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' if sort == key else 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200' }}">
+            {{ entry[0] }}
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if board == 'trung' %}
+    <div class="flex items-start gap-2.5 text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/25 rounded-2xl px-4 py-3">
+        <i data-lucide="info" class="w-4 h-4 flex-shrink-0 mt-0.5"></i>
+        <p class="leading-relaxed">
+            Đây là số liệu do trang nguồn tự công bố, chụp lại tại thời điểm nạp truyện
+            {% if captured_at %}(lần gần nhất: <span class="font-mono">{{ captured_at.strftime('%H:%M %d/%m/%Y') }}</span>){% endif %}.
+            Không phải số liệu thời gian thực, và chỉ có với truyện được nạp qua bảng xếp hạng nguồn.
+        </p>
+    </div>
+    {% endif %}
+
+    <p class="text-xs text-slate-500 font-mono">{{ total | grouped }} truyện &middot; {{ sort_label }}</p>
+
+    {% if novels %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {% for novel in novels %}
+        {% if board == 'trung' %}
+            {% set value = novel.source_recommends if sort == 'de-cu' else (novel.source_monthly_recommends if sort == 'thang' else (novel.source_favorites if sort == 'cat-giu' else novel.source_word_count)) %}
+        {% else %}
+            {% set value = novel.view_count if sort == 'doc-nhieu' else (novel.favorite_count if sort == 'yeu-thich' else (novel.request_count if sort == 'yeu-cau' else novel.translated_chapters)) %}
+        {% endif %}
+        {# `with` puts these in the include's context; a loop-level `set` does not. #}
+        {% with rank = (page - 1) * page_size + loop.index, metric = value, metric_label = sort_label %}
+            {% include "_novel_card.html" %}
+        {% endwith %}
+        {% endfor %}
+    </div>
+    {% with page_url = '/bang-xep-hang?board=' ~ board ~ '&sort=' ~ sort ~ '&page=__PAGE__' %}
+        {% include "_pagination.html" %}
+    {% endwith %}
+    {% else %}
+    <div class="text-center py-20 text-slate-500 space-y-3 bg-slate-900/60 border border-slate-800 rounded-3xl">
+        <i data-lucide="trophy" class="w-12 h-12 mx-auto opacity-30"></i>
+        <p class="text-sm">Chưa có truyện nào có số liệu cho bảng này.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

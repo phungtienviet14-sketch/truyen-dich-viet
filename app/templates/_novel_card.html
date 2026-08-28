@@ -1,0 +1,59 @@
+{# Reusable library card. Expects `novel`; `rank` and `metric` are optional. #}
+{% set pct = (novel.translated_chapters / novel.total_chapters * 100) if novel.total_chapters > 0 else 0 %}
+<div class="novel-card group bg-slate-900/90 border border-slate-800/90 hover:border-emerald-500/40 rounded-3xl p-4 flex gap-3.5 shadow-lg hover:shadow-2xl hover:shadow-emerald-950/40 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+    {% if rank %}
+    <span class="absolute top-0 left-0 px-2.5 py-1 rounded-br-2xl font-black font-mono text-xs {{ 'bg-emerald-500 text-slate-950' if rank <= 3 else 'bg-slate-800 text-slate-400' }}">
+        {{ rank }}
+    </span>
+    {% endif %}
+
+    <div class="relative w-20 h-28 rounded-2xl overflow-hidden shadow-md bg-slate-800 flex-shrink-0 border border-slate-700/80 group-hover:border-emerald-500/40 transition-colors {{ 'mt-4' if rank else '' }}">
+        {% if novel.cover_url %}
+        <img src="{{ novel.cover_url }}" alt="{{ novel.title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" referrerpolicy="no-referrer" />
+        {% else %}
+        <div class="w-full h-full flex items-center justify-center text-emerald-400">
+            <i data-lucide="book-open" class="w-8 h-8 opacity-70"></i>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="flex-1 min-w-0 space-y-1.5">
+        <a href="/novel/{{ novel.id }}" class="font-black text-base text-slate-100 group-hover:text-emerald-400 transition-colors line-clamp-1 block font-heading" title="{{ novel.title_vi or novel.title }}">
+            {{ novel.title_vi or novel.title }}
+        </a>
+        <p class="text-[11px] text-slate-400 font-mono line-clamp-1">Gốc: {{ novel.title }}</p>
+
+        <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span class="badge badge-sm bg-slate-800/90 text-slate-300 border-slate-700/80 text-[10px] gap-1 rounded-lg">
+                <i data-lucide="user" class="w-3 h-3 text-emerald-400"></i> {{ novel.author or 'Chưa rõ' }}
+            </span>
+            {% if novel.category %}
+            <a href="/the-loai/{{ novel.category }}" class="badge badge-sm bg-emerald-500/10 text-emerald-300 border-emerald-500/30 text-[10px] rounded-lg hover:bg-emerald-500/20 transition-colors">
+                {{ novel.category | genre }}
+            </a>
+            {% endif %}
+            {% if novel.source_status %}
+            <span class="badge badge-sm bg-slate-800/90 text-slate-400 border-slate-700/80 text-[10px] rounded-lg">
+                {{ status_labels.get(novel.source_status, novel.source_status) }}
+            </span>
+            {% endif %}
+            <span class="badge badge-sm bg-slate-800/90 text-slate-300 border-slate-700/80 text-[10px] rounded-lg font-mono">
+                {{ novel.total_chapters | grouped }} ch.
+            </span>
+        </div>
+
+        {% if metric %}
+        <p class="text-[11px] text-emerald-300/90 font-mono pt-0.5 flex items-center gap-1">
+            <i data-lucide="trending-up" class="w-3 h-3"></i>
+            {{ metric_label }}: <strong class="text-emerald-300">{{ metric | grouped }}</strong>
+        </p>
+        {% endif %}
+
+        <div class="flex items-center gap-2 pt-1">
+            <progress class="progress progress-primary flex-1 h-1.5 rounded-full" value="{{ pct|round(1) }}" max="100"></progress>
+            <span class="text-[10px] font-mono font-bold {{ 'text-emerald-400' if pct >= 100 else 'text-cyan-400' }}">
+                {{ novel.translated_chapters | grouped }}/{{ novel.total_chapters | grouped }}
+            </span>
+        </div>
+    </div>
+</div>

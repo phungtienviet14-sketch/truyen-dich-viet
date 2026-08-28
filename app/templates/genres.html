@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Thể loại truyện - Truyện Dịch Việt{% endblock %}
+
+{% block content %}
+<div class="container mx-auto max-w-7xl px-4 md:px-8 py-8 space-y-7">
+
+    <header class="space-y-3">
+        <h1 class="text-3xl sm:text-4xl font-black tracking-tight font-heading text-white flex items-center gap-3">
+            <i data-lucide="layout-grid" class="w-8 h-8 text-emerald-400"></i> Thể Loại
+        </h1>
+        <p class="text-sm text-slate-400 max-w-2xl leading-relaxed">
+            Thể loại lấy theo chuyên mục của trang nguồn nơi truyện được nạp về, kèm tên gốc để đối chiếu.
+        </p>
+    </header>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for slug, code, source_label, name in genres %}
+        {% set count = counts.get(slug, 0) %}
+        <a href="/the-loai/{{ slug }}"
+           class="group bg-slate-900/90 border border-slate-800/90 hover:border-emerald-500/40 rounded-3xl p-5 flex items-center justify-between gap-3 shadow-lg hover:shadow-2xl hover:shadow-emerald-950/40 hover:-translate-y-1 transition-all duration-300">
+            <div class="min-w-0 space-y-1">
+                <p class="font-black text-base text-slate-100 group-hover:text-emerald-400 transition-colors font-heading">{{ name }}</p>
+                <p class="text-[11px] text-slate-500 font-mono">{{ source_label }}</p>
+            </div>
+            <span class="badge badge-lg rounded-xl font-mono font-bold text-xs px-3 py-3 flex-shrink-0 {{ 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' if count else 'bg-slate-800 text-slate-500 border-slate-700' }}">
+                {{ count | grouped }}
+            </span>
+        </a>
+        {% endfor %}
+    </div>
+
+    {% set unclassified = counts.get(None, 0) %}
+    {% if unclassified %}
+    <p class="text-xs text-slate-500 font-mono">
+        {{ unclassified | grouped }} truyện chưa phân loại (nạp thủ công theo link, không qua bảng xếp hạng nguồn).
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

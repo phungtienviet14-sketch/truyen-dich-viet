@@ -13,6 +13,7 @@ from app import config
 from app.auth import require_admin, keyed_hash, utcnow
 from app.database import get_db, AsyncSessionLocal, dialect_insert
 from app.models import Novel, Chapter, Glossary, SystemSetting, Comment, Interaction
+from app import catalog
 from app.schemas import (CrawlRequest, TranslateRequest, BatchTranslateRequest, SyncConfigRequest, GlossaryCreate, DiscoverHotRequest, CommentCreate)
 from app.crawler import get_crawler
 from app.crawler.auto_updater import auto_updater
@@ -63,6 +64,7 @@ async def novel_detail_view(novel_id: int, request: Request, db: AsyncSession = 
         select(Comment).where(Comment.novel_id == novel_id).order_by(desc(Comment.created_at)).limit(50)
     )
     comments = comments_res.scalars().all()
+    await count_interaction(db, request, Novel, novel_id, "view_count", daily=True)
 
     return templates.TemplateResponse(
         request=request,
@@ -314,3 +316,84 @@ async def count_interaction(db, request, model, entity_id, field, daily):
     if inserted.rowcount:
         await db.execute(update(model).where(model.id == entity_id).values({field: func.coalesce(getattr(model, field), 0) + 1}))
     await db.commit()
+
+
+# --- Library: rankings, search, genres --------------------------------------
+
+PAGE_SIZE = 24
+
+
+async def paginate(db, query, page):
+    total = await db.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
+    rows = (await db.scalars(query.limit(PAGE_SIZE).offset((page - 1) * PAGE_SIZE))).all()
+    return rows, int(total or 0)
+
+
+async def genre_counts(db):
+    rows = (await db.execute(select(Novel.category, func.count(Novel.id)).group_by(Novel.category))).all()
+    return {row[0]: row[1] for row in rows}
+
+
+def library_context(**extra):
+    return {"genres": catalog.GENRES, "status_labels": catalog.STATUS_LABELS, **extra}
+
+
+@router.get("/bang-xep-hang", response_class=HTMLResponse)
+async def rankings_view(request: Request, board: str = Query("viet"), sort: str = Query(""),
+                        page: int = Query(1, ge=1, le=200), db: AsyncSession = Depends(get_db)):
+    board = board if board in ("viet", "trung") else "viet"
+    chosen, label, query = catalog.ranked_query(board, sort)
+    novels, total = await paginate(db, query, page)
+    # The source counters are a snapshot; show the reader how old they are.
+    captured = await db.scalar(select(func.max(Novel.source_stats_at))) if board == "trung" else None
+    return templates.TemplateResponse(request=request, name="rankings.html", context=library_context(
+        novels=novels, total=total, page=page, page_size=PAGE_SIZE,
+        board=board, sort=chosen, sort_label=label, captured_at=captured,
+        vi_orderings=catalog.VI_ORDERINGS, cn_orderings=catalog.CN_ORDERINGS))
+
+
+@router.get("/tim-kiem", response_class=HTMLResponse)
+async def search_view(request: Request, q: str = Query("", max_length=100),
+                      page: int = Query(1, ge=1, le=200), db: AsyncSession = Depends(get_db)):
+    term = q.strip()
+    novels, total = [], 0
+    if term:
+        query = (select(Novel).where(catalog.search_filter(term))
+                 .order_by(desc(Novel.view_count), desc(Novel.updated_at), Novel.id))
+        novels, total = await paginate(db, query, page)
+    return templates.TemplateResponse(request=request, name="search.html", context=library_context(
+        novels=novels, total=total, page=page, page_size=PAGE_SIZE, term=term))
+
+
+@router.get("/the-loai", response_class=HTMLResponse)
+async def genre_index_view(request: Request, db: AsyncSession = Depends(get_db)):
+    return templates.TemplateResponse(request=request, name="genres.html", context=library_context(
+        counts=await genre_counts(db)))
+
+
+@router.get("/the-loai/{slug}", response_class=HTMLResponse)
+async def genre_view(request: Request, slug: str, page: int = Query(1, ge=1, le=200),
+                     db: AsyncSession = Depends(get_db)):
+    genre = catalog.BY_SLUG.get(slug)
+    if genre is None:
+        raise HTTPException(status_code=404, detail="Không có thể loại này.")
+    query = (select(Novel).where(Novel.category == slug)
+             .order_by(desc(Novel.view_count), desc(Novel.updated_at), Novel.id))
+    novels, total = await paginate(db, query, page)
+    return templates.TemplateResponse(request=request, name="genre.html", context=library_context(
+        novels=novels, total=total, page=page, page_size=PAGE_SIZE, genre=genre))
+
+
+@router.get("/api/novels/search")
+async def search_api(q: str = Query("", max_length=100), db: AsyncSession = Depends(get_db)):
+    """Backs the header suggestion box; capped so typing cannot scan the table."""
+    term = q.strip()
+    if len(term) < 2:
+        return {"results": []}
+    rows = (await db.scalars(select(Novel).where(catalog.search_filter(term))
+                             .order_by(desc(Novel.view_count), Novel.id).limit(8))).all()
+    return {"results": [{"id": n.id, "title": n.title_vi or n.title, "title_raw": n.title,
+                         "author": n.author, "cover_url": n.cover_url,
+                         "genre": catalog.genre_name(n.category),
+                         "total_chapters": n.total_chapters,
+                         "translated_chapters": n.translated_chapters} for n in rows]}

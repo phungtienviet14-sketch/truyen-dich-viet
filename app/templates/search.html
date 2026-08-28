@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{% if term %}Tìm "{{ term }}"{% else %}Tìm truyện{% endif %} - Truyện Dịch Việt{% endblock %}
+
+{% block content %}
+<div class="container mx-auto max-w-7xl px-4 md:px-8 py-8 space-y-7">
+
+    <header class="space-y-3">
+        <h1 class="text-3xl sm:text-4xl font-black tracking-tight font-heading text-white flex items-center gap-3">
+            <i data-lucide="search" class="w-8 h-8 text-emerald-400"></i> Tìm Truyện
+        </h1>
+        <p class="text-sm text-slate-400">Tìm theo tên tiếng Việt, tên gốc tiếng Trung, hoặc tên tác giả.</p>
+    </header>
+
+    <form action="/tim-kiem" method="get" class="flex gap-2 max-w-2xl" role="search">
+        <input type="search" name="q" value="{{ term }}" maxlength="100" autofocus
+               placeholder="Ví dụ: Phàm Nhân Tu Tiên, 凡人修仙传, Vong Ngữ..."
+               class="input input-bordered flex-1 bg-slate-900 border-slate-700 text-slate-100 rounded-2xl focus:border-emerald-500 focus:outline-none placeholder:text-slate-600" />
+        <button type="submit" class="btn bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-none rounded-2xl font-bold gap-2 px-6">
+            <i data-lucide="search" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Tìm</span>
+        </button>
+    </form>
+
+    {% if term %}
+        <p class="text-xs text-slate-500 font-mono">
+            {{ total | grouped }} kết quả cho &ldquo;{{ term }}&rdquo;
+        </p>
+        {% if novels %}
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {% for novel in novels %}{% include "_novel_card.html" %}{% endfor %}
+        </div>
+        {% with page_url = '/tim-kiem?q=' ~ (term | urlencode) ~ '&page=__PAGE__' %}
+            {% include "_pagination.html" %}
+        {% endwith %}
+        {% else %}
+        <div class="text-center py-20 text-slate-500 space-y-3 bg-slate-900/60 border border-slate-800 rounded-3xl">
+            <i data-lucide="search-x" class="w-12 h-12 mx-auto opacity-30"></i>
+            <p class="text-sm">Không tìm thấy truyện nào khớp &ldquo;{{ term }}&rdquo;.</p>
+            <p class="text-xs text-slate-600">Thử tên gốc tiếng Trung, hoặc <a href="/the-loai" class="text-emerald-400 hover:underline">duyệt theo thể loại</a>.</p>
+        </div>
+        {% endif %}
+    {% else %}
+        <div class="space-y-3">
+            <p class="text-[11px] uppercase tracking-wider text-slate-500 font-mono">Hoặc duyệt theo thể loại</p>
+            <div class="flex flex-wrap gap-2">
+                {% for slug, code, source_label, name in genres %}
+                <a href="/the-loai/{{ slug }}" class="badge badge-lg rounded-xl border bg-slate-900 text-slate-300 border-slate-700 hover:border-emerald-500/50 hover:text-emerald-300 text-xs font-semibold px-3 py-3 transition-colors">
+                    {{ name }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

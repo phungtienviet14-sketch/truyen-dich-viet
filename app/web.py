@@ -14,3 +14,20 @@ def identity_context(request):
 
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "app" / "templates"), context_processors=[identity_context])
+
+
+def grouped(value):
+    """Thousands separators: ranking columns are read as magnitudes."""
+    try:
+        return f"{int(value):,}".replace(",", ".")
+    except (TypeError, ValueError):
+        return "--"
+
+
+def genre(slug):
+    from app.catalog import genre_name
+    return genre_name(slug)
+
+
+templates.env.filters["grouped"] = grouped
+templates.env.filters["genre"] = genre

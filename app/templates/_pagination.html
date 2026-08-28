@@ -1,0 +1,17 @@
+{# Expects `page`, `total`, `page_size`, `page_url` (a format string with {page}). #}
+{% set pages = ((total + page_size - 1) // page_size) if page_size else 1 %}
+{% if pages > 1 %}
+<nav class="flex items-center justify-center gap-2 pt-8" aria-label="Phân trang">
+    {% if page > 1 %}
+    <a href="{{ page_url.replace('__PAGE__', (page - 1)|string) }}" class="btn btn-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 rounded-xl gap-1 font-semibold">
+        <i data-lucide="chevron-left" class="w-4 h-4"></i> Trước
+    </a>
+    {% endif %}
+    <span class="text-xs text-slate-400 font-mono px-3">Trang {{ page }} / {{ pages }}</span>
+    {% if page < pages %}
+    <a href="{{ page_url.replace('__PAGE__', (page + 1)|string) }}" class="btn btn-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 rounded-xl gap-1 font-semibold">
+        Sau <i data-lucide="chevron-right" class="w-4 h-4"></i>
+    </a>
+    {% endif %}
+</nav>
+{% endif %}
