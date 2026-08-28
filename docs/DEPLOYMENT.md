@@ -103,3 +103,53 @@ Sau khi kiểm tra nội dung, di chuyển DB hiện tại **cùng** các sideca
 ## 7. Vận hành
 
 Log Docker được giới hạn 3 file × 10 MB/service. Theo dõi dung lượng disk, chi phí/token DeepSeek, queue lỗi và heartbeat. Theo dõi `/health/ready` qua HTTPS nhưng không dùng request giả để né chính sách thu hồi VM nhàn rỗi. Nâng dependency/base image có kiểm thử, tránh dùng tag `latest` cho release.
+
+---
+
+## Triển khai hiện tại: PC nạp — Render phục vụ
+
+### Vì sao tách vai trò
+
+Nguồn truyện đứng sau Cloudflare và **thử thách chống bot với IP của trung tâm dữ liệu**. Render không cào được truyện, và không header hay retry nào vượt qua — mã nhận diện tình huống này ở `SourceChallenged` trong `app/crawler/security.py`. Mạng gia đình thì không bị chặn.
+
+Vì vậy: máy ở nhà nạp và dịch, ghi vào Neon Postgres; Render chỉ đọc từ Neon để phục vụ độc giả.
+
+```
+Nguồn  --crawl OK-->  PC (docker compose: web + worker)  --ghi-->  Neon
+                                                                     |
+Nguồn  --X bị chặn-->  Render  <----------------đọc-------------------+
+```
+
+### Cấu hình Neon
+
+Lấy chuỗi kết nối và đặt vào `DATABASE_URL`:
+
+```bash
+neonctl connection-string --project-id <project-id>
+```
+
+Dán **nguyên văn** chuỗi Neon trả về. `normalize_database_url()` trong `app/config.py` sẽ chuyển `sslmode` sang `ssl` và **loại bỏ `channel_binding`** — tham số libpq mà asyncpg không nhận và sẽ làm ứng dụng chết ngay lúc khởi động nếu lọt xuống.
+
+Migration chạy tự động lúc khởi động (`init_db`), portable trên cả SQLite lẫn Postgres.
+
+### Biến môi trường theo vai trò
+
+| Biến | PC (nạp + dịch) | Render (chỉ phục vụ) |
+| --- | --- | --- |
+| `DATABASE_URL` | cùng một Neon | cùng một Neon |
+| `APIKEY_DEEPSEEK` | có | không cần |
+| `RUN_EMBEDDED_WORKER` | `0` (đã có worker riêng) | **`0`** |
+| `CRAWLER_ALLOWED_HOSTS` | danh sách nguồn | danh sách nguồn |
+| `APP_ENV` | `development` cho localhost | `production` |
+| `SESSION_COOKIE_SECURE` | `false` trên HTTP localhost | `true` |
+
+**Đừng đặt `RUN_EMBEDDED_WORKER=1` trên Render.** Lease điều phối là singleton trong database: khi PC tắt, Render sẽ giành lease, đi cào, bị chặn, và lấp hàng đợi bằng lỗi.
+
+### Ngân sách dung lượng
+
+`CRAWLER_RAW_BUDGET_MB` (mặc định 400) dừng lưu nội dung chương khi database chạm ngưỡng, **nhưng vẫn tiếp tục đồng bộ mục lục**. Gói Neon Free là 0,5 GB mỗi project. Chi tiết số đo và các phương án ở [STORAGE.md](STORAGE.md).
+
+### Lưu ý vận hành
+
+- **Template được nướng vào Docker image.** `docker compose restart` không nạp thay đổi template — phải `docker compose build` lại.
+- **Không tăng số uvicorn worker.** `RateLimiter` đếm trong RAM và `Dockerfile` cố định `--workers 1`.

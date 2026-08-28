@@ -156,3 +156,59 @@ Cơ sở dữ liệu sử dụng **SQLite với chế độ Write-Ahead Logging 
 ### 3.4 Bộ Xuất File Offline (TXT & EPUB Exporters)
 - Sử dụng `ebooklib` và `bs4` tạo file `.EPUB` chuẩn e-book thế giới (IDPF 3.0), nhúng CSS tùy biến, mục lục điều hướng (Navigation TOC), chia từng chương thành file `.xhtml` độc lập.
 - Hỗ trợ xuất file theo **dải chương tùy ý** (Ví dụ: Chương 1 đến 50) hoặc trọn bộ, tùy chọn bản dịch Tiếng Việt hoặc Raw Trung.
+
+---
+
+## 4. Cập nhật kiến trúc (28/08/2026)
+
+Phần 1–3 ở trên mô tả bản đầu. Những thay đổi dưới đây đã được triển khai và kiểm chứng bằng cách chạy thật.
+
+### 4.1 Tách router theo ranh giới quyền
+
+`app/main.py` giờ chỉ giữ middleware, health check và lifespan. Route nằm ở ba router:
+
+- `app/routes/public.py` — trang độc giả, không cần đăng nhập.
+- `app/routes/admin.py` — **mọi thao tác quản trị**; router khai báo `dependencies=[Depends(require_admin)]` nên không route nào lọt ra ngoài ranh giới.
+- `app/routes/auth.py` — đăng nhập admin và tài khoản độc giả.
+
+`app/auth.py` giữ session trong database (`admin_sessions`, `user_sessions`), PBKDF2 600.000 vòng cho admin, CSRF cho mọi thao tác ghi, kiểm `Origin`, rate limit và `audit_logs`.
+
+### 4.2 Hàng đợi dịch bền vững
+
+Thay cho queue trong RAM:
+
+- `translation_jobs` / `translation_tasks` — công việc tồn tại qua restart.
+- `translation_worker_lease` — **lease singleton**: chỉ một tiến trình được điều phối, dù chạy worker riêng (`python -m app.worker`) hay worker nhúng (`app/embedded_worker.py`).
+- `translation_daily_budget` — đặt chỗ token trước mỗi request; vượt hạn mức thì job chuyển `paused` thay vì tiêu tiền.
+- `translation_checkpoints` — lưu kết quả từng chunk để retry không dịch lại phần đã xong.
+- `translation_usage` — token và chi phí ước tính cho mỗi lần gọi.
+
+### 4.3 Ranh giới mạng của crawler
+
+`app/crawler/security.py` fail-closed: chỉ HTTPS, chỉ hostname trong `CRAWLER_ALLOWED_HOSTS`, chặn IP literal và dải private, ghim DNS rồi kết nối tới IP đã kiểm, tự kiểm từng redirect, chặn body quá cỡ, rate limit 1 request/giây mỗi host.
+
+`SourceChallenged` báo riêng trường hợp nguồn chặn IP máy chủ bằng thử thách chống bot — đây là lý do Render không cào được truyện.
+
+### 4.4 Bổ sung lược đồ
+
+Bảng `novels` thêm:
+
+| Cột | Ý nghĩa |
+| --- | --- |
+| `work_key` | Vân tay (tên, tác giả) chuẩn hoá — chống trùng truyện giữa các nền tảng |
+| `category` | Thể loại, lấy từ chuyên mục nguồn nơi truyện được khám phá |
+| `view_count` | Lượt đọc, đếm một lần mỗi khách mỗi ngày |
+| `source_status` | `ongoing` / `completed` theo nguồn |
+| `source_favorites`, `source_recommends`, `source_monthly_recommends`, `source_word_count` | Số liệu nguồn tự công bố, dùng cho bảng xếp hạng Trung |
+| `source_stats_at` | Thời điểm chụp số liệu trên — hiển thị cho độc giả biết độ cũ |
+
+Bảng `chapters` thêm `raw_hash`, `raw_fetched_at`, `source_changed`, và ràng buộc unique `(novel_id, chapter_index)` cùng `(novel_id, url)`.
+
+### 4.5 Thư viện phía độc giả
+
+`app/catalog.py` giữ bảng 9 thể loại nguồn và định nghĩa các cột xếp hạng. Hai bảng đo hai thứ khác nhau và **không trộn thành điểm tổng hợp**:
+
+- **Bảng Việt** — `view_count`, `favorite_count`, `request_count`, `translated_chapters`.
+- **Bảng Trung** — số liệu nguồn tự công bố, kèm thời điểm chụp.
+
+Truyện chưa có số liệu xếp cuối (`NULLS LAST`) thay vì bị coi như bằng 0.
