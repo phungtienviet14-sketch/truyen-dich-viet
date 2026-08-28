@@ -7,6 +7,32 @@ from .base import BaseCrawler
 from .security import MAX_CATALOG_CHAPTERS, canonical_url, same_source_url
 
 
+# The source publishes its own popularity counters on the info page. Labels
+# carry stray spaces and non-breaking spaces ("收 藏 数"), so every pattern is
+# matched against a whitespace-free copy of the page text.
+_STAT_PATTERNS = {
+    "source_word_count": r"全文长度[:：](\d+)",
+    "source_favorites": r"收藏数[:：](\d+)",
+    "source_recommends": r"总推荐数[:：](\d+)",
+    "source_monthly_recommends": r"本月推荐[:：](\d+)",
+}
+_DONE_TOKENS = ("已完成", "已完结", "完本", "全本")
+
+
+def parse_source_stats(page_text: str) -> dict:
+    compact = re.sub(r"\s+", "", page_text or "")
+    stats = {}
+    for field, pattern in _STAT_PATTERNS.items():
+        match = re.search(pattern, compact)
+        if match:
+            # A malformed page must not poison a sort column.
+            stats[field] = min(int(match.group(1)), 2_000_000_000)
+    status = re.search(r"文章状态[:：](已完成|已完结|完本|全本|连载中|连载)", compact)
+    if status:
+        stats["source_status"] = "completed" if status.group(1) in _DONE_TOKENS else "ongoing"
+    return stats
+
+
 class PiaotiaCrawler(BaseCrawler):
     encoding = "gb18030"
 
@@ -73,7 +99,8 @@ class PiaotiaCrawler(BaseCrawler):
         return {"title": title, "author": author,
                 "description": description or "",
                 "cover_url": cover, "source_url": catalog_url,
-                "source_name": "piaotia", "catalog_url": catalog_url}
+                "source_name": "piaotia", "catalog_url": catalog_url,
+                **parse_source_stats(soup.get_text(" ", strip=True))}
 
     async def get_chapter_list(self, catalog_url: str) -> list[dict]:
         _, catalog_url = self._normalize_url(catalog_url)

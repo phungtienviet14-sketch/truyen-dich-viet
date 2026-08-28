@@ -2,20 +2,24 @@ import asyncio
 import json
 import logging
 import os
+from datetime import timedelta
 
 from bs4 import BeautifulSoup
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.database import AsyncSessionLocal, dialect_insert
 from app.models import Novel, SystemSetting
 from app.crawler import get_crawler
 from app.crawler.piaotia import PiaotiaCrawler
+from app.catalog import slug_for_code
 from .identity import work_key
 from .security import same_source_url
-from .sync_store import SyncLease, merge_catalog, raw_candidates, raw_remaining, save_raw, utcnow
+from .sync_store import (SyncLease, merge_catalog, raw_candidates, raw_remaining, save_raw,
+                         storage_used_mb, utcnow)
 
 logger = logging.getLogger("auto_updater")
 SETTINGS_KEY = "auto_updater_config"
+BACKFILL_INTERVAL_SECONDS = 60
 
 
 class AutoUpdater:
@@ -93,10 +97,22 @@ class AutoUpdater:
             # Poll persisted config so disabling/changing the interval in web
             # does not wait for a full old interval in the separate worker.
             elapsed = 0
-            while self.is_running and elapsed < self.interval_seconds:
+            while self.is_running and elapsed < self._next_delay():
                 await asyncio.sleep(10)
                 elapsed += 10
                 await self.load_settings()
+
+    def _next_delay(self):
+        """Short delay while a backfill is still landing chapters.
+
+        A library whose chapters have no raw yet is not source-independent, and
+        at the full interval a 500-chapter novel needs days to fill. Requiring
+        progress as well as remaining work means a source that only errors falls
+        back to the normal interval instead of hammering it.
+        """
+        stats = self.last_sync_stats
+        converging = stats.get("raw_remaining", 0) and stats.get("raw_fetched", 0)
+        return BACKFILL_INTERVAL_SECONDS if converging else self.interval_seconds
 
     async def sync_single_novel(self, novel_id, *, auto_translate=None):
         lease = SyncLease(str(novel_id))
@@ -135,8 +151,17 @@ class AutoUpdater:
                 "message": message, **stats}
 
     async def _fetch_raw(self, novel_id, urls, crawler, lease):
-        limit = max(1, min(100, int(os.getenv("CRAWLER_MAX_RAW_PER_SYNC", "25"))))
-        candidates = await raw_candidates(novel_id, urls, limit)
+        limit = max(1, min(500, int(os.getenv("CRAWLER_MAX_RAW_PER_SYNC", "60"))))
+        days = max(1, min(365, int(os.getenv("CRAWLER_RAW_REFRESH_DAYS", "7"))))
+        budget = float(os.getenv("CRAWLER_RAW_BUDGET_MB", "400"))
+        if budget > 0 and await storage_used_mb() >= budget:
+            # Keep syncing the catalog: it is what lists a novel at all, and it
+            # costs a fraction of the raw text. Only stop storing chapter bodies.
+            logger.warning("Raw backfill paused: database is at the %.0f MB budget", budget)
+            return {"raw_fetched": 0, "raw_errors": 0, "raw_changed": 0,
+                    "raw_remaining": await raw_remaining(novel_id, urls),
+                    "raw_budget_reached": True}, []
+        candidates = await raw_candidates(novel_id, urls, limit, utcnow() - timedelta(days=days))
         fetched, errors, changed, translatable = 0, 0, 0, []
         for chapter_id, url in candidates:
             await lease.refresh()
@@ -202,7 +227,7 @@ class AutoUpdater:
             await lease.refresh()
             try:
                 info = await crawler.get_novel_info(candidate)
-                novel_id = await self._import_discovered(info)
+                novel_id = await self._import_discovered(info, slug_for_code(category_code))
                 if novel_id is None:
                     continue
                 result = await self.sync_single_novel(novel_id, auto_translate=False)
@@ -213,22 +238,42 @@ class AutoUpdater:
                 self.add_log("Khám phá nguồn", 0, "Không thể nhập một truyện từ nguồn.", "error")
         return imported
 
-    async def _import_discovered(self, info):
+    @staticmethod
+    def _source_fields(info, category):
+        """Counters the source publishes about itself, plus when they were read.
+
+        Stored so the reader-facing chart can say how old the numbers are
+        instead of presenting a stale snapshot as today's ranking.
+        """
+        fields = {key: info[key] for key in (
+            "source_favorites", "source_recommends", "source_monthly_recommends",
+            "source_word_count", "source_status") if info.get(key) is not None}
+        if fields:
+            fields["source_stats_at"] = utcnow()
+        if category:
+            fields["category"] = category
+        return fields
+
+    async def _import_discovered(self, info, category=None):
         identity = work_key(info["title"], info["author"])
+        fields = self._source_fields(info, category)
         async with AsyncSessionLocal() as db:
             existing = await db.scalar(select(Novel.id).where(Novel.source_url == info["catalog_url"]))
-            if existing is not None:
-                return None
-            if identity:
+            if existing is None and identity:
                 # Discovery walks a ranking page; the same work often already
                 # sits in the library under another platform's catalog URL.
-                twin = await db.scalar(select(Novel.id).where(Novel.work_key == identity))
-                if twin is not None:
-                    return None
+                existing = await db.scalar(select(Novel.id).where(Novel.work_key == identity))
+            if existing is not None:
+                # Already held: refresh the ranking numbers rather than skip, so
+                # a re-run keeps the charts current without duplicating a book.
+                if fields:
+                    await db.execute(update(Novel).where(Novel.id == existing).values(**fields))
+                    await db.commit()
+                return None
             novel = Novel(title=info["title"], title_vi=info["title"], author=info["author"],
                           description=info["description"], cover_url=info["cover_url"],
                           source_url=info["catalog_url"], source_name="piaotia",
-                          work_key=identity or None)
+                          work_key=identity or None, **fields)
             db.add(novel)
             await db.commit()
             return novel.id

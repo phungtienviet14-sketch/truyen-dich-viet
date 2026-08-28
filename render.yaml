@@ -25,10 +25,13 @@ services:
         value: "true"
       - key: PORT
         value: "8000"
-      # Render's free plan has no separate worker service, so the web process
-      # drives the translation queue and the source sync under the same lease.
+      # Render's egress IP is challenged by the sources' anti-bot layer, so it
+      # cannot crawl at all. Loading runs on a home machine that writes to the
+      # same Neon database; Render only serves what is already stored. Leaving
+      # this at "1" would let Render grab the singleton lease whenever the home
+      # machine is off and fill the queue with blocked-source errors.
       - key: RUN_EMBEDDED_WORKER
-        value: "1"
+        value: "0"
       # Sources must be listed explicitly; the crawler fails closed otherwise.
       - key: CRAWLER_ALLOWED_HOSTS
         value: www.piaotia.com,piaotia.com,www.piaotian.com,piaotian.com

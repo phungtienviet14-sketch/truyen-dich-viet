@@ -120,9 +120,23 @@ async def migrate_novels(connection) -> None:
     columns = await connection.run_sync(inspect_novels)
     if columns is None:
         return
-    if "work_key" not in columns:
-        await connection.execute(text("ALTER TABLE novels ADD COLUMN work_key VARCHAR(64)"))
+    # TIMESTAMP rather than DATETIME: only SQLite accepts the latter.
+    additions = {
+        "work_key": "VARCHAR(64)",
+        "view_count": "INTEGER NOT NULL DEFAULT 0",
+        "category": "VARCHAR(40)",
+        "source_status": "VARCHAR(20)",
+        "source_favorites": "INTEGER",
+        "source_recommends": "INTEGER",
+        "source_monthly_recommends": "INTEGER",
+        "source_word_count": "INTEGER",
+        "source_stats_at": "TIMESTAMP",
+    }
+    for name, definition in additions.items():
+        if name not in columns:
+            await connection.execute(text(f"ALTER TABLE novels ADD COLUMN {name} {definition}"))
     await connection.execute(text("CREATE INDEX IF NOT EXISTS ix_novels_work_key ON novels (work_key)"))
+    await connection.execute(text("CREATE INDEX IF NOT EXISTS ix_novels_category ON novels (category)"))
     duplicates = (await connection.execute(text(
         "SELECT source_url FROM novels GROUP BY source_url HAVING count(*) > 1 LIMIT 5"
     ))).scalars().all()

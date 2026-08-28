@@ -21,6 +21,18 @@ class Novel(Base):
     translated_chapters = Column(Integer, default=0)
     favorite_count = Column(Integer, default=0)
     request_count = Column(Integer, default=0)
+    view_count = Column(Integer, default=0, server_default="0")
+    # Genre comes from the ranking section a novel was discovered under: the
+    # per-novel info page leaves its own category field blank.
+    category = Column(String(40), nullable=True, index=True)
+    source_status = Column(String(20), nullable=True)
+    # The source publishes its own popularity counters. They are a snapshot, so
+    # source_stats_at records when, and the reader is told.
+    source_favorites = Column(Integer, nullable=True)
+    source_recommends = Column(Integer, nullable=True)
+    source_monthly_recommends = Column(Integer, nullable=True)
+    source_word_count = Column(Integer, nullable=True)
+    source_stats_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

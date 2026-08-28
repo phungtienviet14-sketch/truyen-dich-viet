@@ -4,7 +4,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select, text, update
 
 from app.database import AsyncSessionLocal, dialect_insert
 from app.models import Chapter, Novel, SystemSetting
@@ -90,14 +90,42 @@ async def merge_catalog(novel_id, source_url, catalog):
     return new_count, total, tuple(seen)
 
 
-async def raw_candidates(novel_id, urls, limit):
-    # Fetch missing raw first, then oldest snapshots, spreading refresh work
-    # over bounded runs even for a many-thousand-chapter library.
+async def storage_used_mb():
+    """Best-effort database size.
+
+    Raw text is ~10x the cost of a catalog row, so an unattended backfill fills
+    a bounded free tier in under a day. Reporting the size lets the caller stop
+    storing raw while still tracking new chapters.
+    """
     async with AsyncSessionLocal() as db:
-        rows = (await db.execute(select(Chapter.id, Chapter.url).where(
-            Chapter.novel_id == novel_id, Chapter.url.in_(urls), Chapter.status != "translating"
-        ).order_by(Chapter.raw_fetched_at.asc().nullsfirst(), Chapter.chapter_index).limit(limit))).all()
-        return [(row.id, row.url) for row in rows]
+        if db.bind.dialect.name == "postgresql":
+            value = await db.scalar(text("SELECT pg_database_size(current_database())"))
+        else:
+            value = await db.scalar(text(
+                "SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()"))
+    return float(value or 0) / 1048576
+
+
+async def raw_candidates(novel_id, urls, limit, stale_before=None):
+    # Chapters with no raw at all come first: a library is only source-independent
+    # once every chapter is stored. Refresh is bounded by ``stale_before`` because
+    # ordering by ``raw_fetched_at`` alone refetches the oldest rows on every run
+    # forever, so a finished novel keeps hitting the source for no new data.
+    async with AsyncSessionLocal() as db:
+        base = select(Chapter.id, Chapter.url).where(
+            Chapter.novel_id == novel_id, Chapter.url.in_(urls), Chapter.status != "translating")
+        missing = (await db.execute(base.where(
+            (Chapter.content_raw.is_(None)) | (Chapter.content_raw == "")
+        ).order_by(Chapter.chapter_index).limit(limit))).all()
+        rows = [(row.id, row.url) for row in missing]
+        if stale_before is None or len(rows) >= limit:
+            return rows
+        stale = (await db.execute(base.where(
+            Chapter.content_raw.is_not(None), Chapter.content_raw != "",
+            # A raw fetched by the translation path has no timestamp; treat it as due.
+            (Chapter.raw_fetched_at.is_(None)) | (Chapter.raw_fetched_at < stale_before)
+        ).order_by(Chapter.raw_fetched_at.asc().nullsfirst()).limit(limit - len(rows)))).all()
+        return rows + [(row.id, row.url) for row in stale]
 
 
 async def save_raw(chapter_id, payload):

@@ -2,6 +2,8 @@
 import asyncio
 from unittest.mock import AsyncMock
 
+import datetime
+
 import pytest
 
 from app.crawler import get_crawler
@@ -252,6 +254,106 @@ async def test_sync_limit_and_auto_translate_only_ready_raw(monkeypatch, db):
     result = await AutoUpdater().sync_single_novel(novel.id, auto_translate=True)
     assert result["raw_fetched"] == 1 and result["raw_remaining"] == 2 and result["status"] == "partial"
     assert len(enqueue.call_args.kwargs["chapter_ids"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_fresh_raw_is_not_refetched(monkeypatch, db):
+    """A finished novel must stop hitting the source.
+
+    Ordering by ``raw_fetched_at`` alone always yields the oldest rows, so every
+    run refetched the same chapters forever even when nothing had changed.
+    """
+    from app.models import Chapter, Novel
+    from app.crawler.auto_updater import AutoUpdater
+    from app.crawler.sync_store import utcnow
+    novel = Novel(title="测试", source_url="https://www.piaotia.com/html/2/2/index.html")
+    db.add(novel)
+    await db.commit()
+    urls = [f"https://www.piaotia.com/html/2/2/{i}.html" for i in range(1, 4)]
+    db.add_all([Chapter(novel_id=novel.id, chapter_index=i + 1, chapter_title_raw=f"章{i + 1}",
+                        url=url, content_raw="正文", raw_fetched_at=utcnow())
+                for i, url in enumerate(urls)])
+    await db.commit()
+
+    crawler = AsyncMock()
+    crawler.get_chapter_list.return_value = [
+        {"index": i + 1, "title": f"章{i + 1}", "url": url} for i, url in enumerate(urls)]
+    monkeypatch.setattr("app.crawler.auto_updater.get_crawler", lambda _: crawler)
+    result = await AutoUpdater().sync_single_novel(novel.id, auto_translate=False)
+
+    assert result["raw_fetched"] == 0 and result["raw_remaining"] == 0
+    assert result["status"] == "success"
+    crawler.get_chapter_content.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_missing_raw_is_fetched_before_stale_refresh(monkeypatch, db):
+    from app.models import Chapter, Novel
+    from app.crawler.auto_updater import AutoUpdater
+    from app.crawler.sync_store import utcnow
+    novel = Novel(title="测试", source_url="https://www.piaotia.com/html/3/3/index.html")
+    db.add(novel)
+    await db.commit()
+    stale_url = "https://www.piaotia.com/html/3/3/1.html"
+    missing_url = "https://www.piaotia.com/html/3/3/2.html"
+    db.add_all([
+        Chapter(novel_id=novel.id, chapter_index=1, chapter_title_raw="章1", url=stale_url,
+                content_raw="旧", raw_fetched_at=utcnow() - datetime.timedelta(days=90)),
+        Chapter(novel_id=novel.id, chapter_index=2, chapter_title_raw="章2", url=missing_url),
+    ])
+    await db.commit()
+
+    crawler = AsyncMock()
+    crawler.get_chapter_list.return_value = [
+        {"index": 1, "title": "章1", "url": stale_url}, {"index": 2, "title": "章2", "url": missing_url}]
+    crawler.get_chapter_content.return_value = {"title": "章", "content": "正文"}
+    monkeypatch.setenv("CRAWLER_MAX_RAW_PER_SYNC", "1")
+    monkeypatch.setattr("app.crawler.auto_updater.get_crawler", lambda _: crawler)
+    result = await AutoUpdater().sync_single_novel(novel.id, auto_translate=False)
+
+    assert result["raw_fetched"] == 1 and result["raw_remaining"] == 0
+    assert crawler.get_chapter_content.await_args.args[0] == missing_url
+
+
+@pytest.mark.asyncio
+async def test_raw_backfill_stops_at_the_storage_budget(monkeypatch, db):
+    """Raw text is ~10x a catalog row, so an unattended backfill fills a free
+    tier in under a day. The catalog must keep syncing when that happens."""
+    from app.models import Chapter, Novel
+    from app.crawler.auto_updater import AutoUpdater
+    novel = Novel(title="测试", source_url="https://www.piaotia.com/html/4/4/index.html")
+    db.add(novel)
+    await db.commit()
+    url = "https://www.piaotia.com/html/4/4/1.html"
+    new_url = "https://www.piaotia.com/html/4/4/2.html"
+    db.add(Chapter(novel_id=novel.id, chapter_index=1, chapter_title_raw="章1", url=url))
+    await db.commit()
+
+    crawler = AsyncMock()
+    crawler.get_chapter_list.return_value = [
+        {"index": 1, "title": "章1", "url": url}, {"index": 2, "title": "章2", "url": new_url}]
+    monkeypatch.setattr("app.crawler.auto_updater.get_crawler", lambda _: crawler)
+    monkeypatch.setattr("app.crawler.auto_updater.storage_used_mb", AsyncMock(return_value=9000.0))
+    monkeypatch.setenv("CRAWLER_RAW_BUDGET_MB", "400")
+    result = await AutoUpdater().sync_single_novel(novel.id, auto_translate=False)
+
+    crawler.get_chapter_content.assert_not_awaited()
+    assert result["raw_budget_reached"] is True and result["raw_fetched"] == 0
+    # The new chapter is still recorded, so the novel keeps listing it.
+    assert result["new_chapters"] == 1 and result["total_chapters"] == 2
+
+
+def test_backfill_shortens_the_delay_only_while_progressing():
+    from app.crawler.auto_updater import BACKFILL_INTERVAL_SECONDS, AutoUpdater
+    updater = AutoUpdater()
+    updater.interval_seconds = 1800
+    updater.last_sync_stats = {"raw_remaining": 400, "raw_fetched": 60}
+    assert updater._next_delay() == BACKFILL_INTERVAL_SECONDS
+    # A source that only errors must not be polled every minute.
+    updater.last_sync_stats = {"raw_remaining": 400, "raw_fetched": 0}
+    assert updater._next_delay() == 1800
+    updater.last_sync_stats = {"raw_remaining": 0, "raw_fetched": 60}
+    assert updater._next_delay() == 1800
 
 
 # --- Cross-platform deduplication ------------------------------------------
