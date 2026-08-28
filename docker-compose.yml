@@ -11,7 +11,8 @@ x-app: &app
   read_only: true
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
-  tmpfs: [/tmp:size=64m,mode=1777]
+  # Quoted: an unquoted YAML flow sequence splits this on the comma into two mounts.
+  tmpfs: ["/tmp:size=64m,mode=1777"]
   env_file: .env
   environment:
     SKIP_DOTENV: "1"

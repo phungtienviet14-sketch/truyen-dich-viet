@@ -2,6 +2,7 @@
 import os
 import secrets
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from dotenv import load_dotenv
 
@@ -45,14 +46,31 @@ DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data"))).resolve()
 EXPORT_DIR = DATA_DIR / "exports"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+# asyncpg takes driver keywords, not libpq's. Managed Postgres (Neon, Supabase)
+# hands out libpq connection strings, so translate what maps and drop what does
+# not: a leftover such as `channel_binding` reaches asyncpg.connect() as an
+# unexpected keyword argument and every connection fails at startup.
+ASYNCPG_QUERY_KEYS = frozenset({"ssl", "target_session_attrs", "krbsrvname", "gsslib"})
+SSLMODE_TO_SSL = {"disable": "disable", "allow": "prefer", "prefer": "prefer",
+                  "require": "require", "verify-ca": "verify-ca", "verify-full": "verify-full"}
+
+
 def normalize_database_url(url: str) -> str:
     if url.startswith("postgres://"):
         url = "postgresql+asyncpg://" + url[len("postgres://"):]
     elif url.startswith("postgresql://"):
         url = "postgresql+asyncpg://" + url[len("postgresql://"):]
-    if "asyncpg" in url and "sslmode=" in url:
-        url = url.replace("sslmode=require", "ssl=require").replace("sslmode=prefer", "ssl=prefer").replace("sslmode=disable", "ssl=disable")
-    return url
+    if "asyncpg" not in url:
+        return url
+    parts = urlsplit(url)
+    kept = {}
+    for key, value in parse_qsl(parts.query, keep_blank_values=True):
+        if key == "sslmode":
+            # An unknown mode must not silently downgrade TLS.
+            kept["ssl"] = SSLMODE_TO_SSL.get(value.lower(), "require")
+        elif key in ASYNCPG_QUERY_KEYS:
+            kept[key] = value
+    return urlunsplit(parts._replace(query=urlencode(kept)))
 
 
 RAW_DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{DATA_DIR / 'novels.db'}")
