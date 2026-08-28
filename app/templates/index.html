@@ -6,10 +6,82 @@
 <div class="space-y-8">
     <!-- Hero Banner (Cinematic, Modern, Irresistible Tea CTA) -->
     <div class="relative rounded-3xl bg-gradient-to-br from-emerald-950/90 via-slate-900 to-slate-950 border border-emerald-500/30 p-6 sm:p-8 md:p-12 shadow-2xl shadow-emerald-950/40 overflow-hidden">
-        <!-- Ambient Glowing Orbs -->
-        <div class="absolute -top-20 -right-20 w-80 h-80 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none"></div>
-        <div class="absolute -bottom-20 -left-20 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div class="absolute top-1/2 right-1/4 w-40 h-40 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
+        <!-- Tinh Đồ Linh Thú: linh khí trôi, tinh vân, và Thanh Long / Chu Tước thay nhau tự vẽ -->
+        <div class="lt-stage" aria-hidden="true">
+            <div class="lt-qi lt-qi--jade"></div>
+            <div class="lt-qi lt-qi--teal"></div>
+            <div class="lt-qi lt-qi--ember"></div>
+            <div class="lt-sky lt-sky--far"></div>
+            <div class="lt-sky lt-sky--near"></div>
+
+            <svg class="lt-atlas" viewBox="0 0 1200 420" preserveAspectRatio="xMaxYMid slice" fill="none">
+
+                <!-- Thanh Long -->
+                <g class="lt-beast lt-beast--azure">
+                    <path class="lt-ink lt-ink--mass" d="M110 330 C 170 316, 200 296, 240 300 C 292 305, 314 322, 360 322 C 418 322, 442 272, 490 258 C 546 242, 574 226, 620 232 C 678 240, 696 268, 740 268 C 798 268, 818 250, 850 232 C 892 208, 906 194, 930 168 C 954 142, 970 126, 985 110"/>
+                    <path class="lt-ink" d="M110 330 C 170 316, 200 296, 240 300 C 292 305, 314 322, 360 322 C 418 322, 442 272, 490 258 C 546 242, 574 226, 620 232 C 678 240, 696 268, 740 268 C 798 268, 818 250, 850 232 C 892 208, 906 194, 930 168 C 954 142, 970 126, 985 110"/>
+                    <!-- cổ vươn lên; phần đầu để cho các vì sao dựng -->
+                    <path class="lt-ink" d="M985 110 C 994 96, 1002 84, 1012 74"/>
+                    <!-- đúng hai nét: sừng, và một sợi râu buông -->
+                    <path class="lt-ink lt-ink--fine" d="M1026 62 C 1014 40, 1020 20, 1040 10"/>
+                    <path class="lt-ink lt-ink--fine" d="M1058 60 C 1086 66, 1104 84, 1102 108"/>
+                    <path class="lt-ink lt-ink--fine" d="M978 120 C 962 116, 950 124, 944 138 M968 134 C 954 132, 942 142, 938 154"/>
+                    <!-- vây lưng -->
+                    <path class="lt-ink lt-ink--fine" d="M248 288 L 252 268 M312 300 L 318 280 M372 306 L 376 286 M444 272 L 448 252 M502 246 L 504 226 M568 224 L 570 204 M622 220 L 622 200 M688 234 L 686 214 M742 256 L 740 236 M802 250 L 798 230 M852 220 L 848 200 M912 176 L 906 158"/>
+                    <!-- vảy bụng -->
+                    <path class="lt-ink lt-ink--fine" d="M302 320 L 306 334 M424 300 L 426 314 M562 254 L 560 268 M684 250 L 686 264 M806 268 L 804 282 M898 200 L 904 212"/>
+                    <!-- móng vuốt -->
+                    <path class="lt-ink lt-ink--fine" d="M862 246 C 852 276, 860 302, 884 314 M884 314 L 902 306 M884 314 L 890 332 M884 314 L 868 326"/>
+                    <path class="lt-ink lt-ink--fine" d="M486 268 C 474 296, 480 322, 502 334 M502 334 L 520 326 M502 334 L 508 352 M502 334 L 486 346"/>
+                    <!-- chót đuôi -->
+                    <path class="lt-ink lt-ink--fine" d="M110 330 C 90 314, 72 318, 62 334 M110 330 C 94 344, 94 364, 108 374 M110 330 C 86 332, 70 342, 64 356"/>
+                    <!-- thất tú -->
+                    <path class="lt-chord" d="M1056 58 L 1030 66 L 1012 74 L 985 110 L 930 168 L 850 232 L 740 268 L 620 232 L 490 258 L 360 322 L 240 300 L 110 330 M1030 66 L 1044 86 L 1012 74"/>
+                    <circle class="lt-node lt-node--eye" style="--i:0" cx="1030" cy="66" r="3.4"/>
+                    <circle class="lt-node" style="--i:1" cx="1056" cy="58" r="2.6"/>
+                    <circle class="lt-node" style="--i:1" cx="1044" cy="86" r="2.4"/>
+                    <circle class="lt-node" style="--i:2" cx="1012" cy="74" r="2.8"/>
+                    <circle class="lt-node" style="--i:3" cx="985" cy="110" r="3.2"/>
+                    <circle class="lt-node" style="--i:4" cx="930" cy="168" r="2.4"/>
+                    <circle class="lt-node" style="--i:5" cx="850" cy="232" r="3.0"/>
+                    <circle class="lt-node" style="--i:6" cx="740" cy="268" r="2.3"/>
+                    <circle class="lt-node" style="--i:7" cx="620" cy="232" r="3.3"/>
+                    <circle class="lt-node" style="--i:8" cx="490" cy="258" r="2.5"/>
+                    <circle class="lt-node" style="--i:9" cx="360" cy="322" r="2.2"/>
+                    <circle class="lt-node" style="--i:10" cx="240" cy="300" r="2.7"/>
+                </g>
+
+                <!-- Chu Tước -->
+                <g class="lt-beast lt-beast--crimson">
+                    <path class="lt-ink" d="M916 120 C 906 100, 918 82, 940 80 C 956 79, 968 90, 968 102 C 968 112, 960 120, 950 122"/>
+                    <path class="lt-ink lt-ink--fine" d="M968 100 L 1004 94 L 968 112"/>
+                    <!-- mào -->
+                    <path class="lt-ink lt-ink--fine" d="M934 80 C 928 58, 912 44, 890 42 M944 82 C 944 58, 934 40, 914 30 M924 88 C 910 72, 890 64, 870 66"/>
+                    <path class="lt-ink" d="M920 122 C 912 146, 898 174, 880 202 C 866 226, 856 248, 852 266"/>
+                    <!-- cánh trái -->
+                    <path class="lt-ink" d="M892 172 C 826 136, 742 104, 650 92 C 614 87, 584 92, 564 106"/>
+                    <path class="lt-ink lt-ink--fine" d="M844 130 C 826 150, 804 158, 780 156 M758 110 C 740 130, 718 140, 692 138 M670 94 C 654 114, 634 124, 610 124"/>
+                    <!-- cánh phải -->
+                    <path class="lt-ink" d="M898 170 C 962 132, 1038 102, 1122 96"/>
+                    <path class="lt-ink lt-ink--fine" d="M962 142 C 952 164, 936 178, 914 184 M1040 112 C 1032 136, 1016 152, 994 160"/>
+                    <!-- lông đuôi -->
+                    <path class="lt-ink" d="M852 266 C 818 310, 758 350, 678 376"/>
+                    <path class="lt-ink" d="M852 266 C 824 324, 774 382, 704 412"/>
+                    <path class="lt-ink lt-ink--fine" d="M852 266 C 810 296, 744 314, 674 314"/>
+                    <path class="lt-ink lt-ink--fine" d="M678 376 C 666 364, 650 362, 636 370 M704 412 C 690 402, 674 402, 662 412 M674 314 C 662 304, 646 304, 634 312"/>
+                    <!-- thất tú -->
+                    <path class="lt-chord" d="M650 92 L 892 172 L 940 92 M892 172 L 1038 102 M892 172 L 852 266 L 678 376 M852 266 L 674 314"/>
+                    <circle class="lt-node lt-node--eye" style="--i:0" cx="948" cy="96" r="2.3"/>
+                    <circle class="lt-node" style="--i:1" cx="940" cy="92" r="2.8"/>
+                    <circle class="lt-node" style="--i:2" cx="892" cy="172" r="3.4"/>
+                    <circle class="lt-node" style="--i:3" cx="1038" cy="102" r="2.8"/>
+                    <circle class="lt-node" style="--i:4" cx="650" cy="92" r="2.8"/>
+                    <circle class="lt-node" style="--i:5" cx="852" cy="266" r="3.1"/>
+                    <circle class="lt-node" style="--i:6" cx="674" cy="314" r="2.3"/>
+                    <circle class="lt-node" style="--i:7" cx="678" cy="376" r="2.5"/>
+                </g>
+            </svg>
+        </div>
 
         <div class="relative z-10 max-w-3xl space-y-4">
             <div class="inline-flex items-center gap-2 px-3.5 py-1 bg-emerald-500/15 border border-emerald-400/30 text-emerald-400 rounded-full text-xs font-semibold shadow-inner">

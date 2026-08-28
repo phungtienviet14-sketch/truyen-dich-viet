@@ -346,6 +346,194 @@
             border-right: 2.5px solid;
             border-bottom-right-radius: 6px;
         }
+
+        /* ============================================================
+           Tinh Đồ Linh Thú — nền hoạt họa cho khối hero trang thư viện.
+           Tứ Thánh Thú vốn là các chòm sao, nên nền là một trang tinh đồ
+           tự vẽ: Thanh Long hiện ra, tan đi, rồi tới Chu Tước.
+           Một chu kỳ 30s, ~15s mỗi linh thú. Chỉ transform và opacity.
+           ============================================================ */
+        .lt-stage {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 0;
+            border-radius: inherit;
+        }
+
+        /* Lớp 1: linh khí trôi */
+        .lt-qi {
+            position: absolute;
+            border-radius: 9999px;
+            filter: blur(64px);
+            will-change: transform;
+            animation: ltQiDrift 26s ease-in-out infinite alternate;
+        }
+        .lt-qi--jade {
+            top: -22%; right: -12%;
+            width: 30rem; height: 30rem;
+            background: radial-gradient(circle, rgba(16,185,129,.42) 0%, rgba(6,78,59,.20) 55%, transparent 72%);
+            opacity: .5;
+        }
+        .lt-qi--teal {
+            bottom: -26%; left: -10%;
+            width: 28rem; height: 28rem;
+            background: radial-gradient(circle, rgba(20,184,166,.32) 0%, rgba(15,118,110,.16) 55%, transparent 72%);
+            opacity: .45;
+            animation-duration: 32s;
+            animation-delay: -11s;
+        }
+        .lt-qi--ember {
+            top: 34%; right: 22%;
+            width: 15rem; height: 15rem;
+            background: radial-gradient(circle, rgba(245,158,11,.34) 0%, rgba(180,83,9,.14) 55%, transparent 72%);
+            opacity: .4;
+            animation-duration: 21s;
+            animation-delay: -6s;
+        }
+
+        @keyframes ltQiDrift {
+            0%   { transform: translate3d(0, 0, 0) scale(1); }
+            50%  { transform: translate3d(2.2rem, -1.6rem, 0) scale(1.14); }
+            100% { transform: translate3d(-1.8rem, 1.4rem, 0) scale(.93); }
+        }
+
+        /* Lớp 2: tinh vân thưa */
+        .lt-sky {
+            position: absolute;
+            inset: -12%;
+            will-change: transform;
+        }
+        .lt-sky--far {
+            background-image:
+                radial-gradient(1px 1px at 22% 31%, rgba(224,242,254,.55), transparent),
+                radial-gradient(1px 1px at 68% 12%, rgba(224,242,254,.42), transparent),
+                radial-gradient(1px 1px at 41% 78%, rgba(224,242,254,.38), transparent),
+                radial-gradient(1px 1px at 87% 63%, rgba(224,242,254,.50), transparent),
+                radial-gradient(1px 1px at 12% 58%, rgba(224,242,254,.35), transparent);
+            background-size: 137px 137px, 191px 191px, 223px 223px, 281px 281px, 331px 331px;
+            animation: ltSkyDrift 90s linear infinite;
+        }
+        .lt-sky--near {
+            background-image:
+                radial-gradient(1.6px 1.6px at 55% 24%, rgba(165,243,252,.80), transparent),
+                radial-gradient(1.6px 1.6px at 18% 71%, rgba(253,230,138,.62), transparent),
+                radial-gradient(1.4px 1.4px at 79% 44%, rgba(224,242,254,.75), transparent);
+            background-size: 263px 263px, 397px 397px, 311px 311px;
+            animation: ltSkyDrift 62s linear infinite reverse, ltTwinkle 6.5s ease-in-out infinite;
+        }
+
+        @keyframes ltSkyDrift {
+            from { transform: translate3d(0, 0, 0); }
+            to   { transform: translate3d(-137px, 46px, 0); }
+        }
+        @keyframes ltTwinkle {
+            0%, 100% { opacity: .55; }
+            50%      { opacity: 1; }
+        }
+
+        /* Lớp 3: linh thú */
+        .lt-atlas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            /* đậm ở khoảng trống bên phải, lặng đi phía sau khối chữ */
+            -webkit-mask-image: linear-gradient(100deg, transparent 4%, rgba(0,0,0,.28) 34%, #000 72%);
+                    mask-image: linear-gradient(100deg, transparent 4%, rgba(0,0,0,.28) 34%, #000 72%);
+        }
+
+        .lt-beast {
+            opacity: 0;
+            visibility: hidden;
+            animation: ltBeastCycle 30s ease-in-out infinite;
+            animation-delay: var(--lt-phase, 0s);
+        }
+        .lt-beast--azure   { color: #22d3ee; --lt-phase: 0s; }
+        .lt-beast--crimson { color: #fbbf24; --lt-phase: -15s; }
+
+        @keyframes ltBeastCycle {
+            0%           { opacity: 0; visibility: visible; }
+            4%, 40%      { opacity: 1; }
+            47%          { opacity: 0; }
+            47.01%, 100% { opacity: 0; visibility: hidden; }
+        }
+
+        /* nét mực tự vẽ vào */
+        .lt-ink {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            opacity: .30;
+            stroke-dasharray: 2400;
+            stroke-dashoffset: 2400;
+            animation: ltBrush 30s ease-out infinite;
+            animation-delay: var(--lt-phase, 0s);
+        }
+        .lt-ink--fine { stroke-width: 1.1; opacity: .22; }
+        /* một nét rất rộng và rất nhạt cho ra khối thân */
+        .lt-ink--mass { stroke-width: 17; opacity: .085; }
+
+        @keyframes ltBrush {
+            0%        { stroke-dashoffset: 2400; }
+            20%, 100% { stroke-dashoffset: 0; }
+        }
+
+        /* đường nối chòm sao — thẳng, đúng lối tinh đồ */
+        .lt-chord {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: .9;
+            stroke-linecap: round;
+            opacity: .34;
+            stroke-dasharray: 1800;
+            stroke-dashoffset: 1800;
+            animation: ltChord 30s ease-out infinite;
+            animation-delay: var(--lt-phase, 0s);
+        }
+        @keyframes ltChord {
+            0%, 6%    { stroke-dashoffset: 1800; }
+            28%, 100% { stroke-dashoffset: 0; }
+        }
+
+        /* sao các tú, sáng dần từ đầu xuống đuôi */
+        .lt-node {
+            fill: currentColor;
+            filter: drop-shadow(0 0 5px currentColor);
+            opacity: 0;
+            animation: ltNode 30s ease-in-out infinite;
+            animation-delay: calc(var(--lt-phase, 0s) + var(--i, 0) * .28s);
+        }
+        @keyframes ltNode {
+            0%        { opacity: 0; }
+            10%       { opacity: 1; }
+            14%, 40%  { opacity: .85; }
+            47%, 100% { opacity: 0; }
+        }
+        .lt-node--eye { fill: #f8fafc; }
+
+        /* Màn hẹp chỉ thấy một góc tinh đồ: cụm sao đầu dời xuống dưới-phải,
+           tránh khối chữ. */
+        @media (max-width: 767px) {
+            .lt-atlas {
+                -webkit-mask-image: radial-gradient(130% 100% at 88% 86%, #000 12%, rgba(0,0,0,.42) 52%, transparent 86%);
+                        mask-image: radial-gradient(130% 100% at 88% 86%, #000 12%, rgba(0,0,0,.42) 52%, transparent 86%);
+            }
+            .lt-beast { transform: translate(-40px, 196px); }
+            .lt-qi--ember { display: none; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .lt-stage * { animation: none !important; }
+            .lt-qi, .lt-sky { transform: none !important; }
+            .lt-beast--azure   { opacity: .9; visibility: visible; }
+            .lt-beast--crimson { opacity: 0;  visibility: hidden; }
+            .lt-ink, .lt-chord { stroke-dashoffset: 0; }
+            .lt-node           { opacity: .85; }
+        }
     </style>
 <body class="min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white relative">
 
